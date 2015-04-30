@@ -94,8 +94,10 @@ def gtp_io():
                 with open(filename, 'r') as fin:
                     game = gomill.sgf.Sgf_game.from_string(fin.read())
                 board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
-                for move_num, (color, (row, col)) in zip(xrange(movenum_limit), movepairs):
-                    ko_forbidden = board.play(row, col, color)
+                for move_num, (color, move) in zip(xrange(movenum_limit), movepairs):
+                    if move:
+                        row, col = move
+                        ko_forbidden = board.play(row, col, color)
             except IOError:
                 err = 'cannot open sgf file'
                 ret = None
