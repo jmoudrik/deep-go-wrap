@@ -4,6 +4,8 @@ from __future__ import print_function
 import logging
 import re
 import sys
+from itertools import izip, ifilter, imap
+
 import gomill
 from gomill import common, boards, ascii_boards, handicap_layout, sgf, sgf_moves
 
@@ -124,7 +126,7 @@ def gtp_io(bot):
                     next_color = root.get('PL').lower()
                 else:
                     next_color = None
-                for move_num, (color, move) in zip(xrange(movenum_limit), movepairs):
+                for move_num, (color, move) in izip(xrange(movenum_limit), movepairs):
                     if move:
                         row, col = move
                         ko_forbidden_move = board.play(row, col, color)
@@ -134,7 +136,6 @@ def gtp_io(bot):
             except IOError:
                 err = 'cannot open sgf file'
                 ret = None
-                raise
         # Tournament commands
         elif cmd in ['fixed_handicap', 'place_free_handicap']:
             ## TODO how to initialize last_move?
@@ -193,7 +194,7 @@ komi = %.1f"""%(slimmify(gomill.ascii_boards.render_board(board)),
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
-    bot = bot_pass.WrappingPassBot(bots.RandomBot())
-    gtp_io(bot)
     
+    bot = bots.RandomBot()
+    gtp_io(bot)
 
