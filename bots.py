@@ -7,7 +7,8 @@ class Bot(object):
         :return: a tuple (row, col), or None for a pass move
         """
         raise NotImplementedError
-    
+
+
 class DistributionBot(Bot):
     def gen_protodist(self, board, color, last_move, ko_forbidden_move, komi):
         """
@@ -26,7 +27,8 @@ class DistributionBot(Bot):
                  the array should be normalized to 1
         """
         raise NotImplementedError
-    
+
+
 class SimpleDistributionBot(DistributionBot):
     def gen_protodist(self, board, color, last_move, ko_forbidden_move, komi):
         raise NotImplementedError
@@ -38,16 +40,17 @@ class SimpleDistributionBot(DistributionBot):
             return None
         dist = self.gen_probdist(board, color, last_move, ko_forbidden_move, komi)
         return np.unravel_index(np.argmax(dist), a.shape)
-    
+
+
 class RandomBot(Bot):
     def genmove(self, board, color, last_move, ko_forbidden_move, komi):
-        ## TODO smarter pass
         if last_move == 'pass':
             return None
-        ## TODO smarter play
         else:
             for i in xrange(10):
                 row, col = random.randint(0, board.side-1), random.randint(0, board.side-1)
+                ## TODO this might be incorrect move
+                # but nobody will use the RandomBot anyway
                 if not board.get(row, col):
                     return row, col
             return None
