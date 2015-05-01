@@ -8,6 +8,7 @@ import gomill
 from gomill import common, boards, ascii_boards, handicap_layout, sgf, sgf_moves
 
 import bots
+import bot_pass
 
 def slimmify(txt):
     lines = txt.replace('  ', ' ').split('\n')
@@ -54,7 +55,7 @@ def gtp_io(bot):
             break
         line = re.sub(r'\s+', ' ', line)
         line = re.sub(r'#.*', '', line)
-        cmdline = line.lower().strip().split()
+        cmdline = line.strip().split()
         if not cmdline:
             continue
         logging.debug("got gtp cmd: " + ' '.join(cmdline))
@@ -64,7 +65,7 @@ def gtp_io(bot):
             cmdid = cmdline[0]
             cmdline = cmdline[1:]
             
-        cmd, args = cmdline[0], cmdline[1:]
+        cmd, args = cmdline[0].lower(), cmdline[1:]
         
         ret, err = '', '???'
         # Core commands
@@ -77,7 +78,7 @@ def gtp_io(bot):
         elif cmd == "komi":
             komi = float(args[0])
         elif cmd == "play":
-            color, move = args[0], gomill.common.move_from_vertex(args[1], boardsize)
+            color, move = args[0].lower(), gomill.common.move_from_vertex(args[1], boardsize)
             if next_color and next_color != color:
                 logging.warn("This move's color='%s', but I expected it to be next_color='%s'!"%(color, next_color))
             if move is not None:
@@ -87,7 +88,7 @@ def gtp_io(bot):
             else:
                 last_move, next_color = 'pass', gomill.common.opponent_of(color)
         elif cmd in ["reg_genmove",  "genmove"]:
-            color = args[0]
+            color = args[0].lower()
             if next_color and next_color != color:
                 logging.warn("This move's color='%s', but I expected it to be next_color='%s'!"%(color, next_color))
                 
@@ -114,9 +115,15 @@ def gtp_io(bot):
                     game = gomill.sgf.Sgf_game.from_string(fin.read())
                 
                 board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
+                root = game.get_root()
                 komi = game.get_komi()
-                # we wanna have correct state even in the case of empty game
-                ko_forbidden_move, last_move, next_color = None, None, None
+                # we wanna have correct state even in the case of empty/setup game
+                ko_forbidden_move, last_move = None, None
+                # if the setup defines player to play
+                if root.has_property('PL'):
+                    next_color = root.get('PL').lower()
+                else:
+                    next_color = None
                 for move_num, (color, move) in zip(xrange(movenum_limit), movepairs):
                     if move:
                         row, col = move
@@ -127,6 +134,7 @@ def gtp_io(bot):
             except IOError:
                 err = 'cannot open sgf file'
                 ret = None
+                raise
         # Tournament commands
         elif cmd in ['fixed_handicap', 'place_free_handicap']:
             ## TODO how to initialize last_move?
@@ -154,7 +162,7 @@ def gtp_io(bot):
         elif cmd == "list_commands":
             ret = '\n'.join(known_commands)
         elif cmd == "known_command":
-            ret = 'true' if args[0] in known_commands else 'false'
+            ret = 'true' if args[0].lower() in known_commands else 'false'
         elif cmd == "protocol_version":
             ret = '2'
         elif cmd == "quit":
@@ -185,7 +193,7 @@ komi = %.1f"""%(slimmify(gomill.ascii_boards.render_board(board)),
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
-    bot = bots.RandomBot()
+    bot = bot_pass.WrappingPassBot(bots.RandomBot())
     gtp_io(bot)
     
 
