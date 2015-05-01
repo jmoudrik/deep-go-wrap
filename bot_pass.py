@@ -6,8 +6,6 @@ import subprocess
 import gomill
 from gomill import common, boards, sgf, sgf_moves
 
-
-import utils
 from bots import Bot
 
 DEBUG = True
