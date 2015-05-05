@@ -11,19 +11,12 @@ from gomill import common, boards, ascii_boards, handicap_layout, sgf, sgf_moves
 
 import bots
 import bot_pass
+from state import State
 
-def slimmify(txt):
-    lines = txt.replace('  ', ' ').split('\n')
-    lines[-1] = ' ' + lines[-1]
-    return '\n'.join(lines)
-
-def format_move(move):
-    if move in [None, 'pass']:
-        return str(move)
-    return gomill.common.format_vertex(move)
-    
 def gtp_io(bot):
-    """GTP protocol I/O
+    """
+    GTP protocol I/O
+    Keeps track of the game state.
     
     Inspired by michi, https://github.com/pasky/michi
     Spec as in http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html
@@ -96,7 +89,7 @@ def gtp_io(bot):
                 
             # the difference between genmove and reg_genmove is that
             # reg_genmove does not update the board
-            move = bot.genmove(board, color, last_move, ko_forbidden_move, komi)
+            move = bot.genmove(State(board, last_move, ko_forbidden_move, komi), color)
             if move:
                 ret = gomill.common.format_vertex(move)
             else:
@@ -175,16 +168,8 @@ def gtp_io(bot):
             err = 'unknown command "%s"' % cmd
             
         if board:
-            logging.debug("""
-%s
-last_move = %s
-next_color = %s
-ko_forbidden_move = %s
-komi = %.1f"""%(slimmify(gomill.ascii_boards.render_board(board)),
-                format_move(last_move), 
-                next_color,
-                format_move(ko_forbidden_move), 
-                komi))
+            s = State(board, last_move, ko_forbidden_move, komi)
+            logging.debug(s)
         if ret is not None:
             print('=%s %s\n\n' % (cmdid, ret), end='')
         else:
@@ -195,6 +180,6 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
     
-    bot = bots.RandomBot()
+    bot = bot_pass.WrappingPassBot(bots.RandomBot())
     gtp_io(bot)
 

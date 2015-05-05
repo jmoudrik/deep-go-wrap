@@ -8,29 +8,29 @@ from gomill import common, boards, sgf, sgf_moves
 
 from bots import Bot
 
-DEBUG = True
+DEBUG = False
 
 class WrappingPassBot(Bot):
     def __init__(self, bot):
         self.bot = bot
         
-    def genmove(self, *args):
+    def genmove(self, state, color):
         logging.debug("WrappingPassBot: enter")
         # pass if GnuGo tells us to do so
-        if self.gnu_go_pass_check(*args):
+        if self.gnu_go_pass_check(state, color):
             logging.debug("WrappingPassBot: pass")
             return None
         else:
             logging.debug("WrappingPassBot: no pass, descend")
-            return self.bot.genmove(*args)
+            return self.bot.genmove(state, color)
         
-    def gnu_go_pass_check(self, board, color, last_move, ko_forbidden_move, komi):
-        assert isinstance(board, gomill.boards.Board) # for wingide code completion
+    def gnu_go_pass_check(self, state, color):
+        assert isinstance(state.board, gomill.boards.Board) # for wingide code completion
         
-        game = gomill.sgf.Sgf_game(size=board.side)
-        gomill.sgf_moves.set_initial_position(game, board)
+        game = gomill.sgf.Sgf_game(size=state.board.side)
+        gomill.sgf_moves.set_initial_position(game, state.board)
         node = game.get_root()
-        node.set('KM', komi)
+        node.set('KM', state.komi)
         node.set('PL', color)
         
         with tempfile.NamedTemporaryFile(delete=not DEBUG) as sgf_file:

@@ -5,8 +5,9 @@ import logging
 import gomill
 from gomill import common, boards, sgf, sgf_moves
 
+
 class Bot(object):
-    def genmove(self, board, color, last_move, ko_forbidden_move, komi):
+    def genmove(self, state, color):
         """
         :return: a tuple (row, col), or None for a pass move
         """
@@ -14,7 +15,7 @@ class Bot(object):
 
 
 class DistributionBot(Bot):
-    def gen_probdist(self, board, color, last_move, ko_forbidden_move, komi):
+    def gen_probdist(self, state, color):
         """
         Generates a probability distribution for the next move.
         
@@ -31,10 +32,10 @@ class MaxDistributionBot(DistributionBot):
     
     Never passes.
     """
-    def gen_probdist(self, board, color, last_move, ko_forbidden_move, komi):
+    def gen_probdist(self, state, color):
         raise NotImplementedError
-    def genmove(self, board, *args):
-        dist = self.gen_probdist(board, *args)
+    def genmove(self, state, color):
+        dist = self.gen_probdist(state, color)
         return np.unravel_index(np.argmax(dist), dist.shape)
 
     
@@ -45,23 +46,23 @@ class SamplingDistributionBot(DistributionBot):
     
     Never passes.
     """
-    def gen_probdist(self, board, color, last_move, ko_forbidden_move, komi):
+    def gen_probdist(self, state, color):
         raise NotImplementedError
-    def genmove(self, board, *args):
-        dist = self.gen_probdist(board, *args)
+    def genmove(self, state, color):
+        dist = self.gen_probdist(state, color)
         
         # choose an intersection with probability given by the dist
-        coord = np.random.choice((board.side ** 2), 1, p=dist.ravel())[0]
-        return (coord / board.side,  coord % board.side)
+        coord = np.random.choice((state.board.side ** 2), 1, p=dist.ravel())[0]
+        return (coord / state.board.side,  coord % state.board.side)
     
         
 class RandomBot(Bot):
-    def genmove(self, board, color, last_move, ko_forbidden_move, komi):
+    def genmove(self, state, color):
         if last_move == 'pass':
             return None
         else:
             for i in xrange(10):
-                row, col = random.randint(0, board.side-1), random.randint(0, board.side-1)
+                row, col = np.random.choice(state.board.side, 2)
                 ## TODO this might be incorrect move
                 # but nobody will use the RandomBot anyway
                 if not board.get(row, col):
@@ -69,12 +70,12 @@ class RandomBot(Bot):
             return None
             
 if __name__ == "__main__":
-    def _genprobdist(board, *args):
-        a = np.random.random((board.side, board.side))
-        x, y = np.random.choice(board.side, 2)
+    def _genprobdist(state, color):
+        a = np.random.random((state.board.side, state.board.side))
+        x, y = np.random.choice(state.board.side, 2)
         # put the max on the x-y location
         # s.t. we get it often (66%)
-        a[x][y] = board.side ** 2
+        a[x][y] = state.board.side ** 2
         print("max: %d,%d"%(x, y))
         ret = a / a.sum()
         return ret
@@ -85,8 +86,10 @@ if __name__ == "__main__":
         #bot = MaxDistributionBot()
         bot.gen_probdist = _genprobdist
         
+        from state import State
+        
         b = gomill.boards.Board(19)
-        print ("bot: %d,%d"%(bot.genmove(b, 1, None, None, None)))
+        print ("bot: %d,%d"%bot.genmove(State(b), 'w'))
         
     test_bot()
     
