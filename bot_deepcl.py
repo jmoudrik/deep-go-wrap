@@ -112,6 +112,7 @@ class DeepCL_IO(object):
 
     def write_cube(self, cube_array):
         cube_array.tofile(self.pipe_to)
+        self.pipe_to.flush()
 
     def read_response(self, side):
         a = array.array('f')
