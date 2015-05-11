@@ -94,7 +94,7 @@ class DeepCL_IO(object):
         
     def gather_sub_logs(self):
         logging.debug("Waiting for subprocess to end...")
-        stderr, stdout =  self.p.communicate()
+        stdout, stderr =  self.p.communicate()
         logging.debug("stdout:\n"+str(stdout) +"\n")
         logging.debug("stderr:\n"+str(stderr) +"\n")
 
@@ -114,7 +114,9 @@ class DeepCL_IO(object):
         cube_array.tofile(self.pipe_to)
 
     def read_response(self, side):
-        return array.array('f').fromfile(self.pipe_from, side*side*self.itemsize)
+        a = array.array('f')
+        a.fromfile(self.pipe_from, side*side)
+        return a
 
 class DeepCLDistBot(DistributionBot):
     def __init__(self, deepcl_io):
@@ -124,20 +126,20 @@ class DeepCLDistBot(DistributionBot):
         cube = get_plane_cube_v2(state, player)
         
         try:
-            logging.debug("Sending data cube of size %dB to CNN."%(self.itemsize * len(cube)))
+            logging.debug("Sending data cube of size %d B to CNN."%(self.deepcl_io.itemsize * len(cube)))
             self.deepcl_io.write_cube(cube)
             
             logging.debug("Reading response from CNN...")
-            response = self.deepcl_io.get_response(state.board.side)
+            response = self.deepcl_io.read_response(state.board.side)
         except:
             self.deepcl_io.close_pipes()
             self.deepcl_io.gather_sub_logs()
             raise
         
-        logging.debug("Got response of size %dB"%(self.itemsize * len(response)))
+        logging.debug("Got response of size %d B"%(self.deepcl_io.itemsize * len(response)))
         
         image = np.frombuffer(response, np.float32)
-        return image.reshape((side, side))
+        return image.reshape((state.board.side, state.board.side))
 
     def close(self):
         self.deepcl_io.close()
