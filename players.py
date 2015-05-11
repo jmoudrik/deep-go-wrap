@@ -9,6 +9,7 @@ import numpy as np
 import gomill
 from gomill import common, boards, sgf, sgf_moves, gtp_states
 
+import utils
 """
 Basic Player / Bot objects;
 
@@ -45,6 +46,7 @@ class DistWrappingMaxPlayer(Player):
     def __init__(self, bot):
         super(DistWrappingMaxPlayer,  self).__init__()
         self.bot = bot
+        self.handlers['ex-dist'] = self.handle_ex_dist
     def genmove(self, state, player):
         dist = self.bot.gen_probdist(state, player)
         move = np.unravel_index(np.argmax(dist), dist.shape)
@@ -54,6 +56,15 @@ class DistWrappingMaxPlayer(Player):
         return result
     def handle_quit(self, args):
         self.bot.close()
+    def handle_ex_dist(self, args):
+        top = 3
+        if args:
+            try:
+                top = gomill.gtp_engine.interpret_int(args[0])
+            except IndexError:
+                gtp_engine.report_bad_arguments()
+        
+        return self.bot.dist_stats(top)
 
     
 class DistWrappingSamplingPlayer(Player):
@@ -170,45 +181,73 @@ class WrappingPassPlayer(Player):
     
     
 class DistributionBot(object):
-    def gen_probdist(self, state, player):
+    def __init__(self):
+        self.last_dist = None
+        self.last_player = None
+    def gen_probdist_raw(self, state, player):
         """
-        Generates a probability distribution for the next move.
-        
         :return: a numpy array of floats of shape (board.side, board.side), or None for pass
                  the array should be normalized to 1
         """
         raise NotImplementedError
+    def gen_probdist(self, state, player):
+        """
+        Generates a probability distribution for the next move,
+        using the gen_probdist_raw().
+        
+        Stores the dist and the player.
+        
+        :return: a numpy array of floats of shape (board.side, board.side), or None for pass
+                 the array should be normalized to 1
+        """
+        self.last_dist = self.gen_probdist_raw(state,player)
+        self.last_player = player
+        
+        return self.last_dist
+    def dist_stats(self, top=3):
+        if self.last_dist != None:
+            return utils.dist_stats(self.last_dist, top)
+        return ''
+        
     def close(self):
         """Called upon exit, to allow for resource freeup."""
         pass
 
         
 class RandomDistBot(DistributionBot):
-    def gen_probdist(self, state, player):
+    def gen_probdist_raw(self, state, player):
         a = np.random.random((state.board.side, state.board.side))
-        x, y = np.random.choice(state.board.side, 2)
-        # put the max on the x-y location
-        # s.t. we get it often (66%)
-        a[x][y] = state.board.side ** 2
-        ret = a / a.sum()
         
-        logging.debug("max at: %d,%d"%(x, y))
-        return ret
+        empty = utils.empty_board_mask(state.board)
+        # filter out occupied points
+        # (still, there are incorrect moves, such as playing in
+        # suicidal moves)
+        a = a * empty
+        
+        return a / a.sum()
+    
             
 if __name__ == "__main__":
-        
     def test_bot():
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
-        player = DistWrappingSamplingPlayer(RandomDistBot())
+        player = DistWrappingMaxPlayer(RandomDistBot())
         
         class State:
             pass
         s = State()
         
-        b = gomill.boards.Board(19)
+        b = gomill.boards.Board(3)
         s.board = b
-        logging.debug("bot: %s"% repr(player.genmove(s, 'w').move))
+        b.play(1, 1, "b")
+        b.play(0, 1, "b")
+        logging.debug("\n"+gomill.ascii_boards.render_board(b))
+        mv = player.genmove(s, 'w').move
+        b.play(mv[0], mv[1], 'w')
+        logging.debug("\n"+gomill.ascii_boards.render_board(b))
+        logging.debug("best move is " + gomill.common.format_vertex(mv))
+        logging.debug("\n" + str(player.bot.last_dist))
+        logging.debug(utils.dist_stats(player.bot.last_dist))
         
     test_bot()
     
