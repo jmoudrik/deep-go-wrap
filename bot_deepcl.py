@@ -6,42 +6,12 @@ import os
 import logging
 import array
 import numpy as np
+import time
 
 from players import DistributionBot, DistWrappingMaxPlayer
 import gomill
 
-import go_strings
-
-def get_plane_cube_v2(state, player):
-    """Currently supports v2 version compatible planes
-    https://github.com/hughperkins/kgsgo-dataset-preprocessor
-    """
-    colors, strings, liberties = go_strings.board2strings(state.board)
-
-    def is_our_stone((row, col)):
-        return state.board.get(row, col) == player
-    def is_enemy_stone((row, col)):
-        return state.board.get(row, col) == gomill.common.opponent_of(player)
-
-    plane_functions = [ (lambda pt : (is_our_stone(pt) and len(liberties[strings[pt]]) == 1)),
-                        (lambda pt : (is_our_stone(pt) and len(liberties[strings[pt]]) == 2)),
-                        (lambda pt : (is_our_stone(pt) and len(liberties[strings[pt]]) >= 3)),
-                        (lambda pt : (is_enemy_stone(pt) and len(liberties[strings[pt]]) == 1)),
-                        (lambda pt : (is_enemy_stone(pt) and len(liberties[strings[pt]]) == 2)),
-                        (lambda pt : (is_enemy_stone(pt) and len(liberties[strings[pt]]) >= 3)),
-                        (lambda pt : (pt == state.ko_point)) ]
-
-    def iterate_board(board):
-        for row in xrange(board.side):
-            for col in xrange(board.side):
-                yield row, col
-
-    # cube composed of 4-byte floats, with value of either 0, or 255
-    cube_array = array.array('f')
-    for planefc in plane_functions:
-        for pt in iterate_board(state.board):
-            cube_array.append(planefc(pt) * 255)
-    return cube_array
+import cubes
 
 class DeepCL_IO(object):
     def __init__(self,
@@ -52,14 +22,14 @@ class DeepCL_IO(object):
                      # see 'deepclexec -h' for other options
                      # CAVEEAT: normalization has to be set up the same
                      # as when the CNN was trained
-                 }):
+                     }):
         # DeepCL works with 4 byte floats, so we need to ensure we have
         # the same size, if this fails, we could probably reimplement it
         # using struct module
         self.itemsize = 4
         a = array.array('f')
         assert a.itemsize == self.itemsize
-        
+
         self.deepclexec_path = deepclexec_path
 
         for res_opt in ['inputfile', 'outputfile']:
@@ -83,17 +53,26 @@ class DeepCL_IO(object):
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT)
 
+        time.sleep(3)
+        # if the process is dead already,
+        # we cannot proceed, we would hang on the first pipe (below)
+        if self.p.poll() != None:
+            logging.debug("deepclexec died unexpectedly")
+            self.gather_sub_logs()
+            raise RuntimeError("deepclexec died unexpectedly")
+
         # this might seem like a too verbose piece of code, but
         # unfortunately, open() hangs if the other side is not opened,
         # so it is good to see this in log in the case...
         logging.debug("Setting up pipe: "+ self.pipe_fn_to)
+        logging.debug("(If this hangs, deepclexec failed to start properly)")
         self.pipe_to = open(self.pipe_fn_to, 'wb')
         logging.debug("Setting up pipe: "+ self.pipe_fn_from)
         self.pipe_from = open(self.pipe_fn_from, 'rb')
         logging.debug("Pipes set up.")
-        
+
     def gather_sub_logs(self):
-        logging.debug("Waiting for subprocess to end...")
+        logging.debug("Gathering subprocess logs.")
         stdout, stderr =  self.p.communicate()
         logging.debug("stdout:\n"+str(stdout) +"\n")
         logging.debug("stderr:\n"+str(stderr) +"\n")
@@ -101,11 +80,12 @@ class DeepCL_IO(object):
     def close_pipes(self):
         self.pipe_to.close()
         self.pipe_from.close()
-        
+
     def close(self):
         self.close_pipes()
-        self.p.terminate()
-        
+        self.gather_sub_logs()
+        #self.p.terminate()
+
         os.unlink(self.pipe_fn_to)
         os.unlink(self.pipe_fn_from)
         os.rmdir(self.tempdir)
@@ -115,32 +95,33 @@ class DeepCL_IO(object):
         self.pipe_to.flush()
 
     def read_response(self, side):
-        a = array.array('f')
-        a.fromfile(self.pipe_from, side*side)
-        return a
+        return np.fromfile(self.pipe_from, dtype="float32", count=side*side)
 
 class DeepCLDistBot(DistributionBot):
     def __init__(self, deepcl_io):
+        super(DeepCLDistBot,  self).__init__()
         self.deepcl_io = deepcl_io
 
-    def gen_probdist(self, state, player):
-        cube = get_plane_cube_v2(state, player)
-        
+    def gen_probdist_raw(self, state, player):
+        cube = cubes.get_cube_deepcl(state.board, state.ko_point, player)
+
         try:
-            logging.debug("Sending data cube of size %d B to CNN."%(self.deepcl_io.itemsize * len(cube)))
+            logging.debug("Sending data, cube.shape = %s, %d B"%(cube.shape,
+                                                                 self.deepcl_io.itemsize * reduce(lambda a, b:a*b, cube.shape)))
             self.deepcl_io.write_cube(cube)
-            
+            #logging.debug("\n%s"%str(cube))
+
             logging.debug("Reading response from CNN...")
             response = self.deepcl_io.read_response(state.board.side)
         except:
             self.deepcl_io.close_pipes()
             self.deepcl_io.gather_sub_logs()
             raise
-        
+
         logging.debug("Got response of size %d B"%(self.deepcl_io.itemsize * len(response)))
-        
-        image = np.frombuffer(response, np.float32)
-        return image.reshape((state.board.side, state.board.side))
+        #logging.debug("\n%s"%(str(response)))
+
+        return response.reshape((state.board.side, state.board.side))
 
     def close(self):
         self.deepcl_io.close()
@@ -151,11 +132,12 @@ if __name__ == "__main__":
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                             level=logging.DEBUG)
 
-        DCL_PATH = '/home/jm/prj/DeepCL/build/'
-        deepcl_io = DeepCL_IO(DCL_PATH + 'deepclexec', options={
+        DCL_PATH = '/home/jm/prj/DeepCL/'
+        deepcl_io = DeepCL_IO(os.path.join(DCL_PATH, 'build/deepclexec'), options={
             #'dataset':'kgsgo',
             'weightsfile': DCL_PATH + "weights.dat",
-            'datadir': '/home/jm/prj/DeepCL/data/kgsgo',
+            'datadir': os.path.join(DCL_PATH, 'data/kgsgo'),
+            # needed to establish normalization parameters
             'trainfile': 'kgsgo-train10k-v2.dat',})
 
         player = DistWrappingMaxPlayer(DeepCLDistBot(deepcl_io))
@@ -168,5 +150,7 @@ if __name__ == "__main__":
         s.board = b
         s.ko_point = None
         logging.debug("bot: %s"% repr(player.genmove(s, 'w').move))
+
+        #player.handle_quit([])
 
     test_bot()
