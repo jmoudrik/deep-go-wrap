@@ -29,19 +29,17 @@ Dataset Processing
      * others to come
   * parallel processing
 
+#### A naive bash example how to make a dataset
 ```bash
 DATA_DIR="/path/to/dir/containing/your/games"
 
-# make randomly shuffled list of all games found under here
+# make pseudorandomly shuffled list of all games found
 find "$DATA_DIR" -name '*.sgf' | sort -R > filelist
 
-# take one percent of games for testing
-TESTNUM=$(($( cat filelist | wc -l ) / 100 ))
-
-# process testing data
-head -n $TESTNUM filelist | ./process_sgf.py -p clark_storkey_2014_packed testing.hdf5
-# take the rest for training 
-sed "1,$TESTNUM d" filelist | ./process_sgf.py -p clark_storkey_2014_packed training.hdf5
+# this creates the dataset, with 1 bit per plane (7 of them)
+# for each goban point. The dataset is transparently gzip
+# compressed by hdf5, so the size is managable.
+cat filelist | ./process_sgf.py -p clark_storkey_2014_packed dataset.hdf5
 ```
 
 Requirements
