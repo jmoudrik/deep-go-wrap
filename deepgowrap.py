@@ -43,6 +43,7 @@ def main_deepcl():
         #'dataset':'kgsgo',
         'weightsfile': os.path.join(DCL_PATH, "build/weights.dat"), 
         'datadir': os.path.join(DCL_PATH, 'data/kgsgo'),
+        'loadondemand' : 1,
         # needed to establish normalization parameters
         'trainfile': 'kgsgo-train10k-v2.dat',})
     deepcl_bot = bot_deepcl.DeepCLDistBot(deepcl_io)
