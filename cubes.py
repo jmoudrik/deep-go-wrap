@@ -5,10 +5,21 @@ import numpy as np
 import gomill
 import go_strings
 
+# name -> (function, dtype)
+reg_cube = {}
+reg_label = {}
+def register(where, name):
+    def registrator(func):
+        where[name] = func
+        return func
+    return registrator
+
+@register(reg_label, 'simple_label')
 def get_label_simple(move, boardsize=19):
     row, col = move
     return np.array((boardsize * row + col,), dtype='uint8')
 
+@register(reg_cube, 'clark_storkey_2014')
 def get_cube_clark_storkey_2014(board, ko_point, player):
     """
     Planes compatible with the Clark and Storkey 2014 paper
@@ -43,6 +54,12 @@ def get_cube_clark_storkey_2014(board, ko_point, player):
             
     return cube
 
+@register(reg_cube, 'clark_storkey_2014_packed')
+def get_cube_clark_storkey_2014_packed(*args):
+    cube = get_cube_clark_storkey_2014(*args)
+    return np.packbits(cube)
+
+@register(reg_cube, 'deepcl')
 def get_cube_deepcl(board, ko_point, player):
     """v2 version compatible planes
     https://github.com/hughperkins/kgsgo-dataset-preprocessor
@@ -57,63 +74,21 @@ def get_cube_deepcl(board, ko_point, player):
             
     return np.array(255 * cube, dtype='float32')
 
-def get_cube_simple(board, ko_point, player):
-    """
-    The same information as in get_cube_clark_storkey_2014()
-    """
-    colors, strings, liberties = go_strings.board2strings(board)
-    opponent = gomill.common.opponent_of(player)
-
-    def is_our_stone((row, col)):
-        return board.get(row, col) == player
-    def is_enemy_stone((row, col)):
-        return board.get(row, col) == opponent
-    def is_empty((row, col)):
-        return board.get(row, col) == None
-
-    plane_functions = [ (lambda pt : is_our_stone(pt)), 
-                        (lambda pt : is_enemy_stone(pt)), 
-                        (lambda pt : is_empty(pt)), 
-                        (lambda pt : not is_empty(pt) and len(liberties[strings[pt]]) == 1),
-                        (lambda pt : not is_empty(pt) and len(liberties[strings[pt]]) == 2),
-                        (lambda pt : not is_empty(pt) and len(liberties[strings[pt]]) >= 3),
-                        (lambda pt : pt == ko_point) ]
-
-    cube = np.zeros((len(plane_functions), board.side, board.side), dtype='uint8')
+if __name__ == "__main__":
+    def test_cube():
+        import gomill.boards,  gomill.ascii_boards, gomill.common
+        
+        logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                        level=logging.DEBUG)
+        
+        b = gomill.boards.Board(3)
+        b.play(1, 1, "b")
+        b.play(0, 1, "b")
+        b.play(2, 0, "w")
+        
+        logging.debug("\n"+gomill.ascii_boards.render_board(b))
+        
+        logging.debug("\n"+ str(get_cube_deepcl(b, None, 'w')))
+        
+    test_cube()
     
-    for plane, planefc in enumerate(plane_functions):
-        for row in xrange(board.side):
-            for col in xrange(board.side):
-                cube[plane][row][col] = planefc(pt)
-            
-    return cube
-
-def get_cube_more_lib(board, ko_point, player):
-    """
-    """
-    colors, strings, liberties = go_strings.board2strings(board)
-    opponent = gomill.common.opponent_of(player)
-
-    def is_our_stone((row, col)):
-        return board.get(row, col) == player
-    def is_enemy_stone((row, col)):
-        return board.get(row, col) == opponent
-    def is_empty((row, col)):
-        return board.get(row, col) == None
-
-    plane_functions = [ (lambda pt : is_our_stone(pt)), 
-                        (lambda pt : is_enemy_stone(pt)), 
-                        # atari
-                        (lambda pt : not is_empty(pt) and len(liberties[strings[pt]]) == 1),
-                        # num of liberties
-                        (lambda pt : not is_empty(pt) and len(liberties[strings[pt]])),
-                        (lambda pt : pt == ko_point) ]
-
-    cube = np.zeros((len(plane_functions), board.side, board.side), dtype='uint8')
-    
-    for plane, planefc in enumerate(plane_functions):
-        for row in xrange(board.side):
-            for col in xrange(board.side):
-                cube[plane][row][col] = planefc(pt)
-            
-    return cube
