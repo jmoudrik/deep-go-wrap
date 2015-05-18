@@ -90,12 +90,17 @@ class DeepCL_IO(object):
         os.unlink(self.pipe_fn_from)
         os.rmdir(self.tempdir)
 
-    def write_cube(self, cube_array):
-        cube_array.tofile(self.pipe_to)
+    def write_cube(self, cube):
+        cube.tofile(self.pipe_to)
         self.pipe_to.flush()
 
     def read_response(self, side):
         return np.fromfile(self.pipe_from, dtype="float32", count=side*side)
+    
+    def interact(self, cube, side):
+        self.write_cube(cube)
+        return self.read_response(side)
+    
 
 class DeepCLDistBot(DistributionBot):
     def __init__(self, deepcl_io):
@@ -108,18 +113,13 @@ class DeepCLDistBot(DistributionBot):
         try:
             logging.debug("Sending data, cube.shape = %s, %d B"%(cube.shape,
                                                                  self.deepcl_io.itemsize * reduce(lambda a, b:a*b, cube.shape)))
-            self.deepcl_io.write_cube(cube)
-            #logging.debug("\n%s"%str(cube))
-
-            logging.debug("Reading response from CNN...")
-            response = self.deepcl_io.read_response(state.board.side)
+            response = self.deepcl_io.interact(cube, side=state.board.side)
         except:
             self.deepcl_io.close_pipes()
             self.deepcl_io.gather_sub_logs()
             raise
 
         logging.debug("Got response of size %d B"%(self.deepcl_io.itemsize * len(response)))
-        #logging.debug("\n%s"%(str(response)))
 
         return response.reshape((state.board.side, state.board.side))
 
