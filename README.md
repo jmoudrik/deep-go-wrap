@@ -42,6 +42,23 @@ find "$DATA_DIR" -name '*.sgf' | sort -R > filelist
 cat filelist | ./process_sgf.py -p clark_storkey_2014_packed dataset.hdf5
 ```
 
+#### Comparison of different dataset making options
+The following list summarizes file size for different options. The summary
+was made from 200 random GoGoD games (39805 example pairs ~ 200 pairs per game).
+Running times were basically the same (~ 1.8 sec per game on commodity laptop),
+the code scales up linearly based on the number of your cores. HDF5 compresses
+the dataset transparently using gzip -9.
+
+  * Fully expanded, flattened data in floats (e.g. ready for pylearn2)
+     * 14.2kB per game: ```--dtype float32 --flatten -l expanded_label -p clark_storkey_2014```
+  * Fully expanded, flattened data in uint8
+     * 7.7kB per game: ```--flatten -l expanded_label -p clark_storkey_2014```
+  * Flattened data, both features and labels packed using numpy.packbits
+     * 3.2kB per game: ```--flatten -l expanded_label_packed -p clark_storkey_2014_packed```
+  * Flattened data, features packed using numpy.packbits, label just one class number
+     * 2.9kB per game: ```--flatten -l simple_label -p clark_storkey_2014_packed```
+
+
 Requirements
 ------------
  * [gomill library](https://github.com/mattheww/gomill)
