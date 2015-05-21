@@ -44,7 +44,7 @@ def process_game(sgf_fn):
         with open(sgf_fn, 'r') as fin:
             game = gomill.sgf.Sgf_game.from_string(fin.read())
             
-        logging.debug("Processing '%s'"%sgf_fn)
+        logging.info("Processing '%s'"%sgf_fn)
         board, moves = gomill.sgf_moves.get_setup_and_moves(game)
     except Exception as e:
         logging.warn("Error processing '%s': %s"%(sgf_fn, str(e)))
@@ -124,7 +124,7 @@ def main():
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG) # if not args.quiet else logging.WARN)
     
-    logging.debug("args: %s"%args)
+    logging.info("args: %s"%args)
     
     ## INIT pool of workers
     
@@ -230,7 +230,7 @@ def main():
             assert all(y.shape == sample_y.shape for y in ys)
             if xs:
                 add = len(xs)
-                logging.debug("Storing %d examples."%add)
+                logging.info("Storing %d examples."%add)
                 dset_x.resize((size+add,) + dshape_x)
                 dset_y.resize((size+add,) + dshape_y)
                 
@@ -239,9 +239,9 @@ def main():
                 
                 size += add
                 
-        logging.debug("Finished.")
+        logging.info("Finished.")
         for dset in [dset_x, dset_y]:
-            logging.debug("Dataset '%s': shape=%s, size=%s, dtype=%s"%(dset.name,
+            logging.info("Dataset '%s': shape=%s, size=%s, dtype=%s"%(dset.name,
                                                                        repr(dset.shape),
                                                                        repr(dset.size),
                                                                        repr(dset.dtype)))
