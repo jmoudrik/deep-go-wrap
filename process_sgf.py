@@ -102,10 +102,14 @@ def parse_args():
                         help='turn off the (stderr) debug logs')
     parser.add_argument('-s', dest='boardsize', type=int,
                         help='specify boardsize', default=19)
-    parser.add_argument('--nf-units', dest='flatten_units', action='store_false', 
-                        help='do not flatten out one dimensional label (or, unlikely, feature) arrays', default=True)
+    parser.add_argument('--flatten', dest='flatten', action='store_true', 
+                        help='Flatten out the examples. (19, 19, 4) shape becomes ( 19 * 19 * 4,)', default=False)
+    parser.add_argument('--shrink-units', dest='shrink_units', action='store_true', 
+                        help='Shrinks unit dimension label (or, unlikely, feature) arrays.'
+                             ' Only if the unit dimension is the only one in the example,'
+                             ' so (19,19,1) is not shrinked, but (1,) is.', default=False)
     parser.add_argument('--dtype', dest='dtype', 
-                        help='convert dtype of stored data to given dtype (instead the default value defined by plane/label)', default=None)
+                        help='convert dtype of stored data to given numpy dtype (instead the default value defined by plane/label)', default=None)
     parser.add_argument('--proc', type=int,
                         default=multiprocessing.cpu_count(), 
                         help='specify number of processes for parallelization')
@@ -113,7 +117,7 @@ def parse_args():
     return parser.parse_args()
 
 def main():
-    ## INIT ARGS
+    ## ARGS
     args = parse_args()
     
     ## INIT LOGGING
@@ -121,54 +125,99 @@ def main():
                         level=logging.DEBUG) # if not args.quiet else logging.WARN)
     
     logging.debug("args: %s"%args)
+    
     ## INIT pool of workers
     
     initargs=(args.plane, args.label, (args.boardsize, ))
     p = multiprocessing.Pool(args.proc, initializer=init_subprocess, initargs=initargs)
     
-    if args.proc > 1:
-        it = p.imap_unordered(process_game, sys.stdin)
-    else:
-        init_subprocess(*initargs)
-        it = imap(process_game, sys.stdin)
+    ## INIT shapes and transformations
+    # the basic pathway is:
+    # imap job returns two lists [x1, x2, x3, ..], [y1, y2, y3, ..]
+    # of numpy arrays which we want to transform to be able to store in a dataset
+    # in a proper format
         
+    # first determine example shapes
+    b = gomill.boards.Board(args.boardsize)
+    init_subprocess(*initargs)
+    sample_x = get_cube(b, None, 'b')
+    sample_y = get_label((0, 0), args.boardsize)
+    
+    # shape in dataset
+    dshape_x = sample_x.shape
+    dshape_y = sample_y.shape
+    
+    # transformation of the returned lists
+    mapxs = lambda xs : xs
+    mapys = lambda ys : ys
+    
+    ## shrink unit dimension
+    # one dimensional values can be stored flattened
+    # s.t.
+    # 1000 examples of dimensions 1 have shape (1000,)
+    # instead of (1000, 1)
+    # this is probably the case only for the labels 
+    # but support xs anyways
+    if args.shrink_units and sample_x.shape == (1, ):
+        mapxs = lambda xs : np.ndarray.flatten(np.array(xs))
+        dshape_x = tuple() 
+        
+    if args.shrink_units and sample_y.shape == (1, ):
+        mapys = lambda ys : np.ndarray.flatten(np.array(ys))
+        dshape_y = tuple() 
+        
+    transform_example_x = lambda x : x
+    transform_example_y = lambda y : y
+    
+    ## flatten
+    # do not flatten units
+    if args.flatten and dshape_x:
+        transform_example_x = np.ndarray.flatten
+        dshape_x = (reduce((lambda x,y : x*y), dshape_x), )
+        
+    if args.flatten and dshape_y:
+        transform_example_y = np.ndarray.flatten
+        dshape_y = (reduce((lambda x,y : x*y), dshape_y), )
+    
+    ## dtype
+    dtype_x = sample_x.dtype
+    dtype_y = sample_y.dtype
+    
+    recast_dtype = lambda a : a
+    if args.dtype:
+        recast_dtype = lambda a : np.array(a, dtype=args.dtype)
+        dtype_x = args.dtype
+        dtype_y = args.dtype
+        
+    
     ## INIT dataset
     with h5py.File(args.filename) as f:
-        
-        # first determine example shapes
-        b = gomill.boards.Board(args.boardsize)
-        init_subprocess(*initargs)
-        sample_x = get_cube(b, None, 'b')
-        sample_y = get_label((0, 0), args.boardsize)
-        
-        # one dimensional values can be stored flattened
-        # s.t.
-        # 1000 examples of dimensions 1 have shape (1000,)
-        # instead of (1000, 1)
-        # this is probably the case only for the labels 
-        flat_x = args.flatten_units and sample_x.shape == (1, )
-        flat_y = args.flatten_units and sample_y.shape == (1, )
-        
-        # shape in dataset
-        dshape_x = tuple() if flat_x else sample_x.shape
-        dshape_y = tuple() if flat_y else sample_y.shape
-        
-        logging.debug("x.shape=%s, stored %s"%(repr(sample_x.shape), 'flat' if flat_x else 'normal'))
-        logging.debug("y.shape=%s, stored %s"%(repr(sample_y.shape), 'flat' if flat_y else 'normal'))
-        
+        logging.debug("what: raw -> in dataset")
+        logging.debug("x.shape: %s -> %s"%(repr(sample_x.shape), repr(dshape_x) if dshape_x else 'flat'))
+        logging.debug("x.dtype: %s -> %s"%(sample_x.dtype, dtype_x))
+        logging.debug("y.shape: %s -> %s"%(repr(sample_y.shape), repr(dshape_y) if dshape_y else 'flat'))
+        logging.debug("y.dtype: %s -> %s"%(sample_y.dtype, dtype_y))
+    
         dset_x = f.create_dataset(args.xname,
                                   (0,) + dshape_x,
                                   # infinite number of examples
                                   maxshape=(None,) + dshape_x, 
-                                  dtype=sample_x.dtype,
+                                  dtype=dtype_x, 
                                   # we will have a lot of zeros in the data
-                                  compression='gzip' )
+                                  compression='gzip', compression_opts=9)
         
         dset_y = f.create_dataset(args.yname,
                                   (0,) + dshape_y,
                                   maxshape=(None,) + dshape_y, 
-                                  dtype=sample_y.dtype, 
-                                  compression='gzip')
+                                  dtype=dtype_y, 
+                                  compression='gzip', compression_opts=9)
+        ## map the job
+        
+        if args.proc > 1:
+            it = p.imap_unordered(process_game, sys.stdin)
+        else:
+            init_subprocess(*initargs)
+            it = imap(process_game, sys.stdin)
     
         size = 0
         for num, ret in enumerate(it):
@@ -185,11 +234,10 @@ def main():
                 dset_x.resize((size+add,) + dshape_x)
                 dset_y.resize((size+add,) + dshape_y)
                 
-                dset_x[-add:] = xs if not flat_x else np.ndarray.flatten(np.array(xs))
-                dset_y[-add:] = ys if not flat_y else np.ndarray.flatten(np.array(ys))
+                dset_x[-add:] = mapxs([transform_example_x(recast_dtype(x)) for x in xs])
+                dset_y[-add:] = mapys([transform_example_y(recast_dtype(y)) for y in ys])
                 
                 size += add
-        
                 
         logging.debug("Finished.")
         for dset in [dset_x, dset_y]:
