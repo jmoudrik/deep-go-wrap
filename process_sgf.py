@@ -191,6 +191,13 @@ def main():
                 size += add
         
                 
+        logging.debug("Finished.")
+        for dset in [dset_x, dset_y]:
+            logging.debug("Dataset '%s': shape=%s, size=%s, dtype=%s"%(dset.name,
+                                                                       repr(dset.shape),
+                                                                       repr(dset.size),
+                                                                       repr(dset.dtype)))
+            
 if __name__ == "__main__":
     main()
 
