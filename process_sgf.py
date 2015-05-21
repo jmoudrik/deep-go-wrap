@@ -3,8 +3,9 @@
 import sys
 import logging
 import multiprocessing
-from itertools import imap
+from itertools import imap, chain
 import argparse
+import numpy as np
 
 import h5py
 import gomill
@@ -26,6 +27,10 @@ process 200 000 games in under a 24 hours on 4-core commodity laptop. The
 dataset is created (almost) only once and you will probably be spending much
 more time training the CNN anyway.
 """
+
+
+def flatten(list_of_lists):
+    return chain.from_iterable(list_of_lists)
 
 def init_subprocess(plane, label, allowed_boardsizes):
     global get_cube, get_label, board_filter
@@ -97,6 +102,10 @@ def parse_args():
                         help='turn off the (stderr) debug logs')
     parser.add_argument('-s', dest='boardsize', type=int,
                         help='specify boardsize', default=19)
+    parser.add_argument('--nf-units', dest='flatten_units', action='store_false', 
+                        help='do not flatten out one dimensional label (or, unlikely, feature) arrays', default=True)
+    parser.add_argument('--dtype', dest='dtype', 
+                        help='convert dtype of stored data to given dtype (instead the default value defined by plane/label)', default=None)
     parser.add_argument('--proc', type=int,
                         default=multiprocessing.cpu_count(), 
                         help='specify number of processes for parallelization')
@@ -124,25 +133,40 @@ def main():
         it = imap(process_game, sys.stdin)
         
     ## INIT dataset
-    with h5py.File(args.filename, 'w') as f:
-        # first determine dataset shape
+    with h5py.File(args.filename) as f:
+        
+        # first determine example shapes
         b = gomill.boards.Board(args.boardsize)
         init_subprocess(*initargs)
         sample_x = get_cube(b, None, 'b')
         sample_y = get_label((0, 0), args.boardsize)
-        logging.debug("x-shape = %s"%(repr(sample_x.shape)))
-        logging.debug("y-shape = %s"%(repr(sample_y.shape)))
+        
+        # one dimensional values can be stored flattened
+        # s.t.
+        # 1000 examples of dimensions 1 have shape (1000,)
+        # instead of (1000, 1)
+        # this is probably the case only for the labels 
+        flat_x = args.flatten_units and sample_x.shape == (1, )
+        flat_y = args.flatten_units and sample_y.shape == (1, )
+        
+        # shape in dataset
+        dshape_x = tuple() if flat_x else sample_x.shape
+        dshape_y = tuple() if flat_y else sample_y.shape
+        
+        logging.debug("x.shape=%s, stored %s"%(repr(sample_x.shape), 'flat' if flat_x else 'normal'))
+        logging.debug("y.shape=%s, stored %s"%(repr(sample_y.shape), 'flat' if flat_y else 'normal'))
         
         dset_x = f.create_dataset(args.xname,
-                                  (0,) + sample_x.shape,
+                                  (0,) + dshape_x,
                                   # infinite number of examples
-                                  maxshape=(None,) + sample_x.shape,
+                                  maxshape=(None,) + dshape_x, 
                                   dtype=sample_x.dtype,
                                   # we will have a lot of zeros in the data
                                   compression='gzip' )
+        
         dset_y = f.create_dataset(args.yname,
-                                  (0,) + sample_y.shape,
-                                  maxshape=(None,) + sample_y.shape,
+                                  (0,) + dshape_y,
+                                  maxshape=(None,) + dshape_y, 
                                   dtype=sample_y.dtype, 
                                   compression='gzip')
     
@@ -158,13 +182,15 @@ def main():
             if xs:
                 add = len(xs)
                 logging.debug("Storing %d examples."%add)
-                dset_x.resize((size+add,) + sample_x.shape)
-                dset_y.resize((size+add,) + sample_y.shape)
-                dset_x[-add:] = xs
-                dset_y[-add:] = ys
+                dset_x.resize((size+add,) + dshape_x)
+                dset_y.resize((size+add,) + dshape_y)
+                
+                dset_x[-add:] = xs if not flat_x else np.ndarray.flatten(np.array(xs))
+                dset_y[-add:] = ys if not flat_y else np.ndarray.flatten(np.array(ys))
                 
                 size += add
-            
+        
+                
 if __name__ == "__main__":
     main()
 
