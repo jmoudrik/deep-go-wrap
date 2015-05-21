@@ -47,9 +47,11 @@ The following list summarizes file size for different options. The summary
 was made from 200 random GoGoD games (39805 example pairs ~ 200 pairs per game).
 Running times were basically the same (~ 1.8 sec per game on commodity laptop),
 the code scales up linearly based on the number of your cores. HDF5 compresses
-the dataset transparently using gzip -9.
+the dataset transparently using gzip -9. The feature cube is composed of 7 planes
+used in [Clark an Storkey's 2014 paper](http://arxiv.org/pdf/1412.3409).
+The ```--flatten``` option just reshapes data from (7,19,19) to (7*19*19,).
 
-  * Fully expanded, flattened data in floats (e.g. ready for pylearn2)
+  * Fully expanded, flattened data in floats32 (e.g. ready for pylearn2)
      * 14.2kB per game: ```--dtype float32 --flatten -l expanded_label -p clark_storkey_2014```
   * Fully expanded, flattened data in uint8
      * 7.7kB per game: ```--flatten -l expanded_label -p clark_storkey_2014```
