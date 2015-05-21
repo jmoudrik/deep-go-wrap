@@ -19,6 +19,13 @@ def get_label_simple(move, boardsize=19):
     row, col = move
     return np.array((boardsize * row + col,), dtype='uint8')
 
+@register(reg_label, 'expanded_label')
+def get_label_exp(move, boardsize=19):
+    row, col = move
+    ret = np.zeros((boardsize, boardsize), dtype='uint8')
+    ret[row][col] = 1
+    return ret
+
 @register(reg_cube, 'clark_storkey_2014')
 def get_cube_clark_storkey_2014(board, ko_point, player):
     """
