@@ -26,6 +26,11 @@ def get_label_exp(move, boardsize=19):
     ret[row][col] = 1
     return ret
 
+@register(reg_label, 'expanded_label_packed')
+def get_label_exp_packed(move, boardsize=19):
+    label = get_label_exp(move, boardsize)
+    return np.packbits(label)
+
 @register(reg_cube, 'clark_storkey_2014')
 def get_cube_clark_storkey_2014(board, ko_point, player):
     """
