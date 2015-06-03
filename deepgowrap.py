@@ -27,7 +27,7 @@ def main_random():
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
     # player def
-    # player = players.WrappingPassPlayer(players.RandomPlayer())
+    # player = players.WrappingGnuGoPlayer(players.RandomPlayer())
     player = DistWrappingMaxPlayer(RandomDistBot())
 
     # player => engine => RUN
@@ -51,7 +51,7 @@ def main_deepcl():
 
     # 3) make a player which plays the move with max probability
     #    and wrap it by GnuGo to pass correctly
-    player =  WrappingPassPlayer(DistWrappingMaxPlayer(deepcl_bot))
+    player =  WrappingGnuGoPlayer(DistWrappingMaxPlayer(deepcl_bot))
     
     # 4) make the GTP engine
     engine = make_engine(player)

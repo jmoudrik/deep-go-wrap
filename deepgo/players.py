@@ -110,28 +110,33 @@ class RandomPlayer(Player):
             result.resign = True
             return result
 
-class WrappingPassPlayer(Player):
-    def __init__(self, player):
-        super(WrappingPassPlayer,  self).__init__()
+class WrappingGnuGoPlayer(Player):
+    def __init__(self, player, passing=True, resigning=False):
+        super(WrappingGnuGoPlayer,  self).__init__()
         self.player = player
+        self.passing = passing
+        self.resigning = resigning
 
     def genmove(self, state, color):
         result = gtp_states.Move_generator_result()
 
-        logging.debug("WrappingPassBot: enter")
+        logging.debug("WrappingGnuGoPlayer: enter")
+        move = self.gnu_go_move(state, color)
         # pass if GnuGo tells us to do so
-        if self.gnu_go_pass_check(state, color):
-            logging.debug("WrappingPassBot: pass")
+        if self.passing and move == 'pass':
             result.pass_move = True
             return result
+        else if self.resigning and move == 'resign'
+            result.resign = True
+            return result
         else:
-            logging.debug("WrappingPassBot: no pass, descend")
+            logging.debug("WrappingGnuGoPlayer: not listening, descend")
             return self.player.genmove(state, color)
 
     def handle_quit(self, args):
         self.player.handle_quit(args)
 
-    def gnu_go_pass_check(self, state, color):
+    def gnu_go_move(self, state, color):
         assert isinstance(state.board, gomill.boards.Board) # for wingide code completion
 
         game = gomill.sgf.Sgf_game(size=state.board.side)
@@ -145,7 +150,7 @@ class WrappingPassPlayer(Player):
             sgf_file.flush()
             gg_move = utils.get_gnu_go_response(sgf_file.name, color)
 
-        return gg_move.lower() == 'pass'
+        return gg_move.lower()
 
 
 class DistributionBot(object):
