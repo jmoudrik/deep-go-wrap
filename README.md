@@ -24,16 +24,17 @@ GTP wrapper
 #### DeepCL setup (under construction)
 1. Train your deepcl model
     1. get data https://github.com/hughperkins/kgsgo-dataset-preprocessor
-    2. get DeepCL (this is my fork of [this repo](https://github.com/hughperkins/DeepCL)
+    2. get DeepCL, probably [my fork](https://github.com/jmoudrik/DeepCL) of [Hugh Perkins's repo](https://github.com/hughperkins/DeepCL)
     which is sure to work, the changes aren't big and will probably be merged to the 
-    Hugh's repo, so this is for the time being)
-        ```$ git clone --recursive https://github.com/jmoudrik/DeepCL```
+    Hugh's repo, so this is for the time being.
     3. train your model
     4. or, instead of the last step, just download my test small weights (precision 19.6%),
     from [here](http://j2m.cz/~jm/weights.dat) (binary file, might not work on different archs), trained with:
+
         ```./deepclrun numtrain=200000 dataset=kgsgoall 'netdef=32c3{z}-relu-4*(8c3{z}-relu)-128n-tanh-361n' numepochs=20 learningrate=0.0001```
 2. edit path to DeepCL and model's weights file in the *deepgowrap.py* (for the time being)
     * now the deepgowrap acts as an GTP program, so you can run it:
+
     ```echo -e "boardsize 19\nclear_board B\nquit" | ./deepgowrap.py```
 
 HDF Go Datasets
