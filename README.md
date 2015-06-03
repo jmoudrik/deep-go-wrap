@@ -16,10 +16,9 @@ GTP wrapper
     * so far only DeepCL nets (*working*), pylearn2 on the way, easy to extend
  * I/O handling, data planes extraction
  * full GTP support using gomill library
- * pass implementation, by using GnuGo as an pass-oracle. This unfortunately means, that we have to wait for GnuGo, which is much slower than CNN.
+ * pass/resign implementation, using GnuGo as an oracle. Note that this slows thigs down a bit, GnuGo being slower than CNN.
  * move correctness checking
- * TODO:
-     * **any other ideas?**
+ * **Do you have other great ideas? Contribute, or make an issue!**
 
 #### DeepCL setup (under construction)
 1. Train your deepcl model
@@ -28,8 +27,7 @@ GTP wrapper
     which is sure to work, the changes aren't big and will probably be merged to the 
     Hugh's repo, so this is for the time being.
     3. train your model
-    4. or, instead of the last step, just download my test small weights (precision 19.6%),
-    from [here](http://j2m.cz/~jm/weights.dat) (binary file, might not work on different archs), trained with:
+    4. or, instead of the last step, just download my test small weights (precision 19.6%, trained in 10 minutes, very weak ;-), from [here](http://j2m.cz/~jm/weights.dat) (binary file, might not work on different archs), trained with:
 
         ```./deepclrun numtrain=200000 dataset=kgsgoall 'netdef=32c3{z}-relu-4*(8c3{z}-relu)-128n-tanh-361n' numepochs=20 learningrate=0.0001```
 2. edit path to DeepCL and model's weights file in the *deepgowrap.py* (for the time being)
