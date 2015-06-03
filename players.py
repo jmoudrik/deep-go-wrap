@@ -15,7 +15,7 @@ Basic Player / Bot objects;
 
 Player should be gomill compatible envelope which actually generates
     moves, resigns, ..
-    
+
 Bot should be the object that actually does the core work, e.g. computing
 Move probability, ..
 """
@@ -40,7 +40,7 @@ class DistWrappingMaxPlayer(Player):
     """
     A simple wrapping bot which chooses next move to be the one with the biggest (therefore the name)
     probability. The probabilities are computed by the wrapped bot's gen_probdist().
-    
+
     Never passes.
     """
     def __init__(self, bot):
@@ -50,7 +50,7 @@ class DistWrappingMaxPlayer(Player):
     def genmove(self, state, player):
         dist = self.bot.gen_probdist(state, player)
         move = np.unravel_index(np.argmax(dist), dist.shape)
-        
+
         result = gtp_states.Move_generator_result()
         result.move = move
         return result
@@ -63,15 +63,15 @@ class DistWrappingMaxPlayer(Player):
                 top = gomill.gtp_engine.interpret_int(args[0])
             except IndexError:
                 gtp_engine.report_bad_arguments()
-        
+
         return self.bot.dist_stats(top)
 
-    
+
 class DistWrappingSamplingPlayer(Player):
     """
     A simple wrapping bot which randomly samples next move based on the moves' probability
     distribution, computed by the wrapped bot's gen_probdist().
-    
+
     Never passes.
     """
     def __init__(self, bot):
@@ -82,14 +82,14 @@ class DistWrappingSamplingPlayer(Player):
         # choose an intersection with probability given by the dist
         coord = np.random.choice((state.board.side ** 2), 1, p=dist.ravel())[0]
         move = (coord / state.board.side,  coord % state.board.side)
-    
+
         result = gtp_states.Move_generator_result()
         result.move = move
         return result
     def handle_quit(self, args):
         self.bot.close()
-    
-        
+
+
 class RandomPlayer(Player):
     def genmove(self, state, player):
         result = gtp_states.Move_generator_result()
@@ -107,7 +107,7 @@ class RandomPlayer(Player):
                     return result
             result.resign = True
             return result
-    
+
 
 def get_gnu_go_response(sgf_filename, color):
     """
@@ -118,26 +118,26 @@ def get_gnu_go_response(sgf_filename, color):
                                                                     color))
     GTP_CMD = "loadsgf %s\ngenmove %s\n"% (sgf_filename, color)
     p = subprocess.Popen(['gnugo', '--mode', 'gtp'],
-                         stdin=subprocess.PIPE, 
+                         stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE)
     stdout = p.communicate(GTP_CMD)[0]
-        
-    
+
+
     # split & filter out empty strings
     responses = [ tok.strip() for tok in stdout.split('\n') if tok ]
-    
+
     failed = False
     for resp in responses:
         if resp[0] == '?':
             logging.warn("GnuGo error: '%s'"%resp)
             failed = True
-            
+
     sign, move = responses[-1].split()
     # success
     if sign == '=':
         logging.debug("GnuGo would play %s"%move)
         return move
-            
+
     if failed:
         logging.warn("Could not get GnuGo move.")
         return None
@@ -146,10 +146,10 @@ class WrappingPassPlayer(Player):
     def __init__(self, player):
         super(WrappingPassPlayer,  self).__init__()
         self.player = player
-        
+
     def genmove(self, state, color):
         result = gtp_states.Move_generator_result()
-    
+
         logging.debug("WrappingPassBot: enter")
         # pass if GnuGo tells us to do so
         if self.gnu_go_pass_check(state, color):
@@ -159,27 +159,27 @@ class WrappingPassPlayer(Player):
         else:
             logging.debug("WrappingPassBot: no pass, descend")
             return self.player.genmove(state, color)
-        
+
     def handle_quit(self, args):
         self.player.handle_quit(args)
-        
+
     def gnu_go_pass_check(self, state, color):
         assert isinstance(state.board, gomill.boards.Board) # for wingide code completion
-        
+
         game = gomill.sgf.Sgf_game(size=state.board.side)
         gomill.sgf_moves.set_initial_position(game, state.board)
         node = game.get_root()
         node.set('KM', state.komi)
         node.set('PL', color)
-        
+
         with tempfile.NamedTemporaryFile() as sgf_file:
             sgf_file.write(game.serialise())
             sgf_file.flush()
             gg_move = get_gnu_go_response(sgf_file.name, color)
-        
+
         return gg_move.lower() == 'pass'
-    
-    
+
+
 class DistributionBot(object):
     def __init__(self):
         self.last_dist = None
@@ -194,49 +194,49 @@ class DistributionBot(object):
         """
         Generates a probability distribution for the next move,
         using the gen_probdist_raw().
-        
+
         Stores the dist and the player.
-        
+
         :return: a numpy array of floats of shape (board.side, board.side), or None for pass
                  the array should be normalized to 1
         """
         self.last_dist = self.gen_probdist_raw(state,player)
         self.last_player = player
-        
+
         return self.last_dist
     def dist_stats(self, top=3):
-        if self.last_dist != None:
+        if self.last_dist is not None:
             return utils.dist_stats(self.last_dist, top)
         return ''
-        
+
     def close(self):
         """Called upon exit, to allow for resource freeup."""
         pass
 
-        
+
 class RandomDistBot(DistributionBot):
     def gen_probdist_raw(self, state, player):
         a = np.random.random((state.board.side, state.board.side))
-        
+
         empty = utils.empty_board_mask(state.board)
         # filter out occupied points
         # (still, there are incorrect moves, such as playing in
         # suicidal moves)
         a = a * empty
-        
+
         return a / a.sum()
-    
-            
+
+
 if __name__ == "__main__":
     def test_bot():
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
         player = DistWrappingMaxPlayer(RandomDistBot())
-        
+
         class State:
             pass
         s = State()
-        
+
         b = gomill.boards.Board(3)
         s.board = b
         b.play(1, 1, "b")
@@ -248,6 +248,6 @@ if __name__ == "__main__":
         logging.debug("best move is " + gomill.common.format_vertex(mv))
         logging.debug("\n" + str(player.bot.last_dist))
         logging.debug(utils.dist_stats(player.bot.last_dist))
-        
+
     test_bot()
-    
+
