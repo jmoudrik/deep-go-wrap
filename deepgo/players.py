@@ -49,10 +49,12 @@ class DistWrappingMaxPlayer(Player):
         self.handlers['ex-dist'] = self.handle_ex_dist
     def genmove(self, state, player):
         dist = self.bot.gen_probdist(state, player)
-        move = np.unravel_index(np.argmax(dist), dist.shape)
-
         result = gtp_states.Move_generator_result()
-        result.move = move
+        if dist is not None:
+            move = np.unravel_index(np.argmax(dist), dist.shape)
+            result.move = move
+        else:
+            result.pass_move = True
         return result
     def handle_quit(self, args):
         self.bot.close()
@@ -79,12 +81,14 @@ class DistWrappingSamplingPlayer(Player):
         self.bot = bot
     def genmove(self, state, player):
         dist = self.bot.gen_probdist(state, player)
-        # choose an intersection with probability given by the dist
-        coord = np.random.choice((state.board.side ** 2), 1, p=dist.ravel())[0]
-        move = (coord / state.board.side,  coord % state.board.side)
-
         result = gtp_states.Move_generator_result()
-        result.move = move
+        if dist is not None:
+            # choose an intersection with probability given by the dist
+            coord = np.random.choice((state.board.side ** 2), 1, p=dist.ravel())[0]
+            move = (coord / state.board.side,  coord % state.board.side)
+            result.move = move
+        else:
+            result.pass_move = True
         return result
     def handle_quit(self, args):
         self.bot.close()
@@ -220,7 +224,12 @@ class DistributionBot(object):
             
             # keep only correct moves
             dist = correct_moves * dist
-            dist = dist / dist.sum()
+            s = dist.sum()
+            if s > 0.0:
+                dist = dist / dist.sum()
+            else:
+                logging.debug("No valid moves, PASSING.")
+                dist = None
             
         self.last_dist = dist
         self.last_player = player
