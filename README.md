@@ -36,13 +36,15 @@ GTP wrapper
     * now the deepgowrap acts as an GTP program, so you can run it:
     ```echo -e "boardsize 19\nclear_board B\nquit" | ./deepgowrap.py```
 
-Dataset Processing
+HDF Go Datasets
 ------------------
   * different planes support, easy to extend
      * as in [Clark and Storkey 2014](http://arxiv.org/abs/1412.3409)
      * planes from DeepCL
      * others to come
   * parallel processing
+  * the HDF dataset created is compatible with pylearn2 for instance, but *NOT with DeepCL*
+  
 
 #### A naive bash example how to make a dataset
 ```bash
@@ -66,7 +68,7 @@ the dataset transparently using gzip -9. The feature cube is composed of 7 plane
 used in [Clark an Storkey's 2014 paper](http://arxiv.org/pdf/1412.3409).
 The ```--flatten``` option just reshapes data from ```(7,19,19)``` to ```(7*19*19,)```.
 
-  * Fully expanded, flattened data in floats32 (e.g. ready for pylearn2)
+  * Fully expanded, flattened data in floats32 (e.g. directly ready for pylearn2)
      * 14.2kB per game: ```--dtype float32 --flatten -l expanded_label -p clark_storkey_2014```
   * Fully expanded, flattened data in uint8
      * 7.7kB per game: ```--flatten -l expanded_label -p clark_storkey_2014```
