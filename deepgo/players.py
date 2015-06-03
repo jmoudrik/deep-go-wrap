@@ -215,7 +215,7 @@ class DistributionBot(object):
                 
             # compute some debugging stats of the incorrect moves first
             incorrect_dist = (1 - correct_moves) * dist
-            logging.debug("Incorrect moves statistics: %s"%(
+            logging.debug("Incorrect moves statistics:\n%s"%(
                                 utils.dist_stats(incorrect_dist)))
             
             # keep only correct moves
