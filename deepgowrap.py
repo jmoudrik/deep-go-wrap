@@ -39,14 +39,20 @@ def main_deepcl():
 
     ## DCL_PATH = '/PATH/TO/YOUR/DeepCL'
     DCL_PATH = '/home/jm/prj/DeepCL/'
+    # 1) set up io
     deepcl_io = bot_deepcl.DeepCL_IO(os.path.join(DCL_PATH, 'build/predict'), options={
         ## set up your weights file
         'weightsfile': os.path.join(DCL_PATH, "build/weights.dat"),
         'outputformat': 'binary',
             })
+    # 2) set up deepcl distribution bot
     deepcl_bot = bot_deepcl.DeepCLDistBot(deepcl_io)
 
-    player = DistWrappingMaxPlayer(deepcl_bot)
+    # 3) make a player which plays the move with max probability
+    #    and wrap it by GnuGo to pass correctly
+    player =  WrappingPassPlayer(DistWrappingMaxPlayer(deepcl_bot))
+    
+    # 4) make the GTP engine
     engine = make_engine(player)
     gomill.gtp_engine.run_interactive_gtp_session(engine)
 
