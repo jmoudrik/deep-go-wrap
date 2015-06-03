@@ -88,6 +88,7 @@ class DeepCL_IO(object):
             logging.debug("Pipes set up.")
         except KeyboardInterrupt:
             self.gather_sub_logs()
+            raise
 
     def gather_sub_logs(self):
         logging.debug("Gathering subprocess logs.")
