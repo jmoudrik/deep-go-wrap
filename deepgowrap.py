@@ -38,14 +38,13 @@ def main_deepcl():
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
     
+    ## DCL_PATH = '/PATH/TO/YOUR/DeepCL'
     DCL_PATH = '/home/jm/prj/DeepCL/'
-    deepcl_io = bot_deepcl.DeepCL_IO(os.path.join(DCL_PATH, 'build/deepclexec'), options={
-        #'dataset':'kgsgo',
+    deepcl_io = bot_deepcl.DeepCL_IO(os.path.join(DCL_PATH, 'build/predict'), options={
+        ## set up your weights file
         'weightsfile': os.path.join(DCL_PATH, "build/weights.dat"), 
-        'datadir': os.path.join(DCL_PATH, 'data/kgsgo'),
-        'loadondemand' : 1,
-        # needed to establish normalization parameters
-        'trainfile': 'kgsgo-train10k-v2.dat',})
+        'outputformat': 'binary',
+            })
     deepcl_bot = bot_deepcl.DeepCLDistBot(deepcl_io)
 
     player = DistWrappingMaxPlayer(deepcl_bot)

@@ -22,7 +22,14 @@ class DeepCL_IO(object):
                      # see 'deepclexec -h' for other options
                      # CAVEEAT: normalization has to be set up the same
                      # as when the CNN was trained
-                     }):
+                     },
+                 shape=(7, 19, 19) # it is a bit ugly, but DeepCL reads
+                                   # the shape info before it opens the output
+                                   # file, so we cannot wait until first run
+                                   # to read the info from the cube
+                                   # (or we could postpone the initialization
+                                   # until first call, but this is ugly)
+                 ):
         # DeepCL works with 4 byte floats, so we need to ensure we have
         # the same size, if this fails, we could probably reimplement it
         # using struct module
@@ -32,27 +39,29 @@ class DeepCL_IO(object):
 
         self.deepclexec_path = deepclexec_path
 
-        for res_opt in ['inputfile', 'outputfile']:
+        for res_opt in ['outputfile', 'batchsize']:
             if res_opt in options:
                 logging.warn("DeepCL_IO: '%s' option is reserved, overriding."%res_opt)
+                
+        options['batchsize'] = 1
 
         # first create the named pipes for IO
+        self.pipe_to, self.pipe_from = None,  None
+        
         self.tempdir = tempfile.mkdtemp()
 
-        self.pipe_fn_to = os.path.join(self.tempdir, "PIPE_to")
         self.pipe_fn_from = os.path.join(self.tempdir, "PIPE_from")
 
-        options['inputfile'] = self.pipe_fn_to
         options['outputfile'] = self.pipe_fn_from
 
-        os.mkfifo(self.pipe_fn_to)
         os.mkfifo(self.pipe_fn_from)
 
         self.p = subprocess.Popen([deepclexec_path] + [ "%s=%s"%(k, v) for k, v in options.iteritems() ],
-                                  stdin=None,
+                                  stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT)
 
+        logging.debug("Waiting 3sec for the deepclexec to start up properly..")
         time.sleep(3)
         # if the process is dead already,
         # we cannot proceed, we would hang on the first pipe (below)
@@ -61,32 +70,44 @@ class DeepCL_IO(object):
             self.gather_sub_logs()
             raise RuntimeError("deepclexec died unexpectedly")
 
+        # us -> them
+        self.pipe_to = self.p.stdin
+        # write header
+        # cube shape = 7 x 19 x 19
+        shapea = np.array(shape, dtype='i4')
+        shapea.tofile(self.pipe_to)
+        self.pipe_to.flush()
+
+        # them -> us
         # this might seem like a too verbose piece of code, but
         # unfortunately, open() hangs if the other side is not opened,
         # so it is good to see this in log in the case...
-        logging.debug("Setting up pipe: "+ self.pipe_fn_to)
-        logging.debug("(If this hangs, deepclexec failed to start properly)")
-        self.pipe_to = open(self.pipe_fn_to, 'wb')
-        logging.debug("Setting up pipe: "+ self.pipe_fn_from)
-        self.pipe_from = open(self.pipe_fn_from, 'rb')
-        logging.debug("Pipes set up.")
+        try:
+            logging.debug("Setting up pipe: "+ self.pipe_fn_from)
+            self.pipe_from = open(self.pipe_fn_from, 'rb')
+            logging.debug("Pipes set up.")
+        except KeyboardInterrupt:
+            self.gather_sub_logs()
 
     def gather_sub_logs(self):
         logging.debug("Gathering subprocess logs.")
-        stdout, stderr =  self.p.communicate()
-        logging.debug("stdout:\n"+str(stdout) +"\n")
-        logging.debug("stderr:\n"+str(stderr) +"\n")
+        stdout, _stderr =  self.p.communicate()
+        logging.debug("Ended with returncode %d."%self.p.returncode)
+        # see def of self.p, 2>&1
+        logging.debug("stdout + stderr:\n"+str(stdout) +"\n")
 
     def close_pipes(self):
-        self.pipe_to.close()
-        self.pipe_from.close()
+        if self.pipe_to !=  None:
+            self.pipe_to.close()
+            
+        if self.pipe_from !=  None:
+            self.pipe_from.close()
 
     def close(self):
-        self.close_pipes()
+        #self.close_pipes()
         self.gather_sub_logs()
         #self.p.terminate()
 
-        os.unlink(self.pipe_fn_to)
         os.unlink(self.pipe_fn_from)
         os.rmdir(self.tempdir)
 
@@ -96,11 +117,11 @@ class DeepCL_IO(object):
 
     def read_response(self, side):
         return np.fromfile(self.pipe_from, dtype="float32", count=side*side)
-    
+
     def interact(self, cube, side):
         self.write_cube(cube)
         return self.read_response(side)
-    
+
 
 class DeepCLDistBot(DistributionBot):
     def __init__(self, deepcl_io):
@@ -115,7 +136,7 @@ class DeepCLDistBot(DistributionBot):
                                                                  self.deepcl_io.itemsize * reduce(lambda a, b:a*b, cube.shape)))
             response = self.deepcl_io.interact(cube, side=state.board.side)
         except:
-            self.deepcl_io.close_pipes()
+            #self.deepcl_io.close_pipes()
             self.deepcl_io.gather_sub_logs()
             raise
 
@@ -133,12 +154,10 @@ if __name__ == "__main__":
                             level=logging.DEBUG)
 
         DCL_PATH = '/home/jm/prj/DeepCL/'
-        deepcl_io = DeepCL_IO(os.path.join(DCL_PATH, 'build/deepclexec'), options={
-            #'dataset':'kgsgo',
-            'weightsfile': DCL_PATH + "weights.dat",
-            'datadir': os.path.join(DCL_PATH, 'data/kgsgo'),
-            # needed to establish normalization parameters
-            'trainfile': 'kgsgo-train10k-v2.dat',})
+        deepcl_io = bot_deepcl.DeepCL_IO(os.path.join(DCL_PATH, 'build/predict'), options={
+            'weightsfile': os.path.join(DCL_PATH, "build/weights.dat"), 
+            'outputformat': 'binary',
+                })
 
         player = DistWrappingMaxPlayer(DeepCLDistBot(deepcl_io))
 
