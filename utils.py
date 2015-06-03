@@ -30,13 +30,17 @@ def dist_stats(dist, top=3):
     row, col = ind2pt(sort_ind[0])
     ret.append("mean: \t%.6f"%(np.mean(dist)))
     ret.append("stddev: %.6f"%(np.std(dist)))
-    ret.append("min: \t" + format_move_prob((row, col), dist[row][col]))
+    #ret.append("min: \t" + format_move_prob((row, col), dist[row][col]))
 
+    s = 0.0
     # list of # top moves
     for num, i in enumerate(reversed(sort_ind[-top:])):
         row, col = ind2pt(i)
         prob = dist[row][col]
+        s += prob
         ret.append("%d: \t"%(num+1) + format_move_prob((row, col), prob))
+    
+    ret.append("top %d moves cover: %.2f %%" % (top, 100* s))
 
 
     return "\n".join(ret)
