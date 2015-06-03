@@ -59,7 +59,7 @@ def board2strings(board):
     return colors, visited, liberties
 
 if __name__ == "__main__":
-    with open("test_sgf/test.sgf", 'r') as fin:
+    with open("test_sgf/test1.sgf", 'r') as fin:
         game = gomill.sgf.Sgf_game.from_string(fin.read())
     
     board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
