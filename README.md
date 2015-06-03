@@ -16,9 +16,9 @@ GTP wrapper
     * so far only DeepCL nets (*working*), pylearn2 on the way, easy to extend
  * I/O handling, data planes extraction
  * full GTP support using gomill library
- * pass implementation, by using GnuGo as an pass-oracle
+ * pass implementation, by using GnuGo as an pass-oracle. This unfortunately means, that we have to wait for GnuGo, which is much slower than CNN.
+ * move correctness checking
  * TODO:
-     * move correctness checking
      * **any other ideas?**
 
 #### DeepCL setup (under construction)
