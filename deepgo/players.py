@@ -126,7 +126,7 @@ class WrappingGnuGoPlayer(Player):
         if self.passing and move == 'pass':
             result.pass_move = True
             return result
-        else if self.resigning and move == 'resign'
+        elif self.resigning and move == 'resign':
             result.resign = True
             return result
         else:
