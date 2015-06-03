@@ -8,9 +8,9 @@ import sys
 import gomill
 from gomill import gtp_engine, gtp_states
 
-from players import *
+from deepgo.players import *
 
-import bot_deepcl
+from deepgo import bot_deepcl
 
 def make_engine(player):
     """Return a Gtp_engine_protocol which runs the specified player."""

@@ -11,7 +11,7 @@ import h5py
 import gomill
 import gomill.sgf, gomill.sgf_moves
 
-import cubes
+from deepgo import cubes
 
 """
 This reads sgf's from stdin, processes them in a parallel manner to extract
