@@ -8,20 +8,21 @@ from gomill import boards, sgf, sgf_moves
 
 NBCOORD = ((-1,0), (1,0), (0,1), (0,-1))
 
+def coord_onboard(board, (row, col)):
+    return row >= 0 and col >= 0 and row < board.side and col < board.side
+
+def iter_nbhs(board, (row, col)):
+    for dx, dy in NBCOORD:
+        nbx, nby = row + dx, col + dy
+        if coord_onboard(board, (nbx, nby)):
+            yield nbx, nby
+
 def board2strings(board):
     """
     Divides board into strings and computes sets of their liberties.
     Takes O(N) time and space, where N is the number of occupied points.
     Algorithm is a simple dfs.
     """
-    
-    def coord_onboard(row, col):
-        return row >= 0 and col >= 0 and row < board.side and col < board.side
-    def iter_nbhs((row, col)):
-        for dx, dy in NBCOORD:
-            nbx, nby = row + dx, col + dy
-            if coord_onboard(nbx, nby):
-                yield nbx, nby
     
     # pt => color
     colors = dict((pt, color) for (color, pt) in board.list_occupied_points() )
@@ -43,7 +44,7 @@ def board2strings(board):
                 continue
             visited[n] = i
             # dfs over unvisited nbhood of the same color
-            for nb in iter_nbhs(n):
+            for nb in iter_nbhs(board, n):
                 # track liberty
                 if not nb in colors:
                     liberties.setdefault(i, set()).add(nb)
