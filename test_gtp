@@ -1,0 +1,10 @@
+boardsize 19
+name
+clear_board
+genmove B
+ex-dist 5
+quit
+
+#loadsgf test_sgf/test2.sgf 200
+#fixed_handicap 3
+#set_free_handicap J12 K11 J10 H11
