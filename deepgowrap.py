@@ -4,6 +4,7 @@ from __future__ import print_function
 import logging
 import re
 import sys
+import os
 
 import gomill
 from gomill import gtp_engine, gtp_states

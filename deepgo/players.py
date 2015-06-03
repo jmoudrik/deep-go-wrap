@@ -1,10 +1,8 @@
 from __future__ import print_function
 
 import logging
-import tempfile
-import os
-import subprocess
 import numpy as np
+import tempfile
 
 import gomill
 from gomill import common, boards, sgf, sgf_moves, gtp_states
@@ -112,40 +110,6 @@ class RandomPlayer(Player):
             result.resign = True
             return result
 
-
-def get_gnu_go_response(sgf_filename, color):
-    """
-    returns None if we could not get gnugo move.
-    otw, returns raw gnugo response "PASS","D9",...
-    """
-    logging.debug("get_gnu_go_move(sgf_filename='%s', color='%s')"%(sgf_filename,
-                                                                    color))
-    GTP_CMD = "loadsgf %s\ngenmove %s\n"% (sgf_filename, color)
-    p = subprocess.Popen(['gnugo', '--mode', 'gtp'],
-                         stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE)
-    stdout = p.communicate(GTP_CMD)[0]
-
-
-    # split & filter out empty strings
-    responses = [ tok.strip() for tok in stdout.split('\n') if tok ]
-
-    failed = False
-    for resp in responses:
-        if resp[0] == '?':
-            logging.warn("GnuGo error: '%s'"%resp)
-            failed = True
-
-    sign, move = responses[-1].split()
-    # success
-    if sign == '=':
-        logging.debug("GnuGo would play %s"%move)
-        return move
-
-    if failed:
-        logging.warn("Could not get GnuGo move.")
-        return None
-
 class WrappingPassPlayer(Player):
     def __init__(self, player):
         super(WrappingPassPlayer,  self).__init__()
@@ -179,7 +143,7 @@ class WrappingPassPlayer(Player):
         with tempfile.NamedTemporaryFile() as sgf_file:
             sgf_file.write(game.serialise())
             sgf_file.flush()
-            gg_move = get_gnu_go_response(sgf_file.name, color)
+            gg_move = utils.get_gnu_go_response(sgf_file.name, color)
 
         return gg_move.lower() == 'pass'
 

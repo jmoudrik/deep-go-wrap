@@ -1,5 +1,7 @@
 import numpy as np
 import logging
+import os
+import subprocess
 
 import gomill
 from gomill import common, boards
@@ -98,6 +100,45 @@ def dist_stats(dist, top=3):
 
     return "\n".join(ret)
 
+
+
+def get_gnu_go_response(sgf_filename, color):
+    """
+    returns None if we could not get gnugo move.
+    otw, returns raw gnugo response "PASS","D9",...
+    """
+    logging.debug("get_gnu_go_move(sgf_filename='%s', color='%s')"%(sgf_filename,
+                                                                    color))
+    GTP_CMD = "loadsgf %s\ngenmove %s\n"% (sgf_filename, color)
+    p = subprocess.Popen(['gnugo', '--level',  '1', '--mode', 'gtp'],
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+                         
+    stdout, stderr = p.communicate(GTP_CMD)
+
+    
+    if stderr:
+        logging.warn("GnuGo stderr: '%s'"%stderr)
+
+    # split & filter out empty strings
+    responses = [ tok.strip() for tok in stdout.split('\n') if tok ]
+
+    failed = False
+    for resp in responses:
+        if resp[0] == '?':
+            logging.warn("GnuGo error: '%s'"%resp)
+            failed = True
+
+    sign, move = responses[-1].split()
+    # success
+    if sign == '=':
+        logging.debug("GnuGo would play %s"%move)
+        return move
+
+    if failed:
+        logging.warn("Could not get GnuGo move.")
+        return None
 
 if __name__ ==  "__main__":
     def test_stat():
