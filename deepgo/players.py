@@ -186,24 +186,46 @@ class DistributionBot(object):
         self.last_player = None
     def gen_probdist_raw(self, state, player):
         """
+        The core method to implement for distribution bots.
+        It needs not
+        
         :return: a numpy array of floats of shape (board.side, board.side), or None for pass
                  the array should be normalized to 1
         """
         raise NotImplementedError
     def gen_probdist(self, state, player):
         """
-        Generates a probability distribution for the next move,
+        Generates a correct move probability distribution for the next move,
         using the gen_probdist_raw().
+        
+        Correct means that it zeroes out probability of playing incorrect move,
+        such as move forbidden by ko, suicide and occupied points.
 
         Stores the dist and the player.
 
         :return: a numpy array of floats of shape (board.side, board.side), or None for pass
-                 the array should be normalized to 1
+                 the array is normalized to 1
         """
-        self.last_dist = self.gen_probdist_raw(state,player)
+        dist = self.gen_probdist_raw(state, player)
+        
+        if dist is not None:
+            correct_moves = utils.correct_moves_mask(state.board,  player)
+            if state.ko_point:
+                correct_moves[state.ko_point[0]][state.ko_point[1]] = 0
+                
+            # compute some debugging stats of the incorrect moves first
+            incorrect_dist = (1 - correct_moves) * dist
+            logging.debug("Incorrect moves statistics: %s"%(
+                                utils.dist_stats(incorrect_dist)))
+            
+            # keep only correct moves
+            dist = correct_moves * dist
+            dist = dist / dist.sum()
+            
+        self.last_dist = dist
         self.last_player = player
-
         return self.last_dist
+    
     def dist_stats(self, top=3):
         if self.last_dist is not None:
             return utils.dist_stats(self.last_dist, top)
@@ -216,15 +238,7 @@ class DistributionBot(object):
 
 class RandomDistBot(DistributionBot):
     def gen_probdist_raw(self, state, player):
-        a = np.random.random((state.board.side, state.board.side))
-
-        empty = utils.empty_board_mask(state.board)
-        # filter out occupied points
-        # (still, there are incorrect moves, such as playing in
-        # suicidal moves)
-        a = a * empty
-
-        return a / a.sum()
+        return np.random.random((state.board.side, state.board.side))
 
 
 if __name__ == "__main__":
