@@ -1,5 +1,5 @@
 import bot_deepcl
 import cubes
-import go_strings
+import analyze_board
 import players
 import utils
