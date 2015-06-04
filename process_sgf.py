@@ -213,8 +213,9 @@ def main():
                                   compression='gzip', compression_opts=9)
         
         dset_x.attrs['name'] = args.plane
-        dset_x.attrs['boardsize'] = args.boardsize
         dset_y.attrs['name'] = args.label
+        dset_x.attrs['boardsize'] = args.boardsize
+        dset_y.attrs['boardsize'] = args.boardsize
         dset_x.attrs['original_dtype'] = repr(sample_x.dtype)
         dset_y.attrs['original_dtype'] = repr(sample_x.dtype)
         dset_x.attrs['original_example_shape'] = repr(sample_x.shape)
