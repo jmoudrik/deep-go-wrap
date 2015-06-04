@@ -8,6 +8,8 @@ import gomill
 from gomill import common, boards, sgf, sgf_moves, gtp_states
 
 import utils
+import analyze_board
+
 """
 Basic Player / Bot objects;
 
@@ -182,7 +184,7 @@ class DistributionBot(object):
         dist = self.gen_probdist_raw(state, player)
         
         if dist is not None:
-            correct_moves = utils.correct_moves_mask(state.board,  player)
+            correct_moves = analyze_board.correct_moves_mask(state.board,  player)
             if state.ko_point:
                 correct_moves[state.ko_point[0]][state.ko_point[1]] = 0
                 

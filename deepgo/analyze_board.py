@@ -74,7 +74,7 @@ def correct_moves_mask(board, player):
     # filter out incorrect intersections (set to 0)
     d = d * correct_moves_mask(board, 'b')
     """
-    colors, strings, liberties = go_strings.board2strings(board)
+    colors, strings, liberties = board2strings(board)
     
     mask = np.zeros((board.side, board.side))
     # fill in correct moves
@@ -87,7 +87,7 @@ def correct_moves_mask(board, player):
             # correct if either we have a liberty in the neighborhood
             # or we dont AND (we connect with friends who do OR
             #                 we capture something)
-            for nb in go_strings.iter_nbhs(board, (row, col)):
+            for nb in iter_nbhs(board, (row, col)):
                 row_nb, col_nb = nb
                 nb_color = board.get(row_nb, col_nb)
                 # liberty
