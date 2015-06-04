@@ -85,6 +85,9 @@ def main():
                 # clark_storkey_2014_packed, has just the correct representation
                 data.tofile(fout)
                 
+            # finaly, mark the end
+            fout.write('END')
+                
             logging.info("Finished processing %d examples."%(num_examples))
             
 if __name__ == "__main__":
