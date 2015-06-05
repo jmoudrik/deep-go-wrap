@@ -156,7 +156,7 @@ def correct_moves_mask(board, player, string_lib, nb_info):
                     continue
     return mask
 
-def board2liberty_mask(board):
+def board2empty_mask(board):
     mask = np.ones((board.side, board.side))
     for row in xrange(board.side):
         for col in xrange(board.side):
