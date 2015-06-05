@@ -156,21 +156,28 @@ def correct_moves_mask(board, player, string_lib, nb_info):
                     continue
     return mask
 
-def board2color_mask(board):
-    black = np.zeros((board.side, board.side))
-    white = np.zeros((board.side, board.side))
+def board2color_mask(board, player):
     empty = np.zeros((board.side, board.side))
+    friend = np.zeros((board.side, board.side))
+    enemy = np.zeros((board.side, board.side))
     
     for row in xrange(board.side):
         for col in xrange(board.side):
             color = board.get(row, col)
-            if color == 'b':
-                black[row][col] = 1
-            elif color == 'w':
-                white[row][col] = 1
-            else:
+            if color is None:
                 empty[row][col] = 1
-    return black, white, empty
+            elif color == player:
+                friend[row][col] = 1
+            else:
+                enemy[row][col] = 1
+    return empty, friend, enemy
+
+def liberties_count(board, string_lib):
+    liberties = np.zeros((board.side, board.side))
+    for (row, col), si in string_lib.string.iteritems():
+        liberties[row][col] = len(string_lib.liberties[si])
+    
+    return liberties
 
 def board2correct_move_mask(board, player):
     string_lib = board2string_lib(board)
