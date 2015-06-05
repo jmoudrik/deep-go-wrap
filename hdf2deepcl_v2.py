@@ -57,10 +57,13 @@ def main():
         with open(args.filename_out, 'w') as fout:
             logging.info("Starting the conversion to v2")
             
-            header = "mlv2-n=%d-numplanes=7-imagewidth=%dsimageheight=%s-datatype=int-bpp=1\0\n" % (
-                        num_examples,
-                        dset_x.attrs['boardsize'], 
-                        dset_x.attrs['boardsize'])
+            header = '-'.join(["mlv2",
+                               "n=%d" % num_examples, 
+                               "numplanes=7", 
+                               "imagewidth=%d" % dset_x.attrs['boardsize'], 
+                               "imageheight=%d"% dset_x.attrs['boardsize'], 
+                               "datatype=int", 
+                               "bpp=1\0\n"])
             fout.write(header)
             # the header is padded
             fout.write( chr(0) * (1024 - len(header)))
