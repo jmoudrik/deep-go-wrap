@@ -156,13 +156,21 @@ def correct_moves_mask(board, player, string_lib, nb_info):
                     continue
     return mask
 
-def board2empty_mask(board):
-    mask = np.ones((board.side, board.side))
+def board2color_mask(board):
+    black = np.zeros((board.side, board.side))
+    white = np.zeros((board.side, board.side))
+    empty = np.zeros((board.side, board.side))
+    
     for row in xrange(board.side):
         for col in xrange(board.side):
-            if board.get(row, col):
-                a[row][col] = 0
-    return mask
+            color = board.get(row, col)
+            if color == 'b':
+                black[row][col] = 1
+            elif color == 'w':
+                white[row][col] = 1
+            else:
+                empty[row][col] = 1
+    return black, white, empty
 
 def board2correct_move_mask(board, player):
     string_lib = board2string_lib(board)
@@ -226,7 +234,6 @@ if __name__ == "__main__":
             game = gomill.sgf.Sgf_game.from_string(fin.read())
         
         tt0 = 0
-        tt1 = 0
         tt2 = 0
         tt3 = 0
         it = 0
@@ -243,10 +250,6 @@ if __name__ == "__main__":
                     tt0 += time.clock() - s
                     
                     s = time.clock()
-                    m1 = correct_moves_mask(board, 'w', sl)
-                    tt1 += time.clock() - s
-                    
-                    s = time.clock()
                     an = analyze_nbhood(board, 'w', sl)
                     tt3 += time.clock() - s
                     
@@ -254,14 +257,10 @@ if __name__ == "__main__":
                     m2 = correct_moves_mask(board, 'w', sl, an)
                     tt2 += time.clock() - s
                     
-                    assert (m1 - m2).sum() == 0
-                    
-                    
                     it += 1
-        logging.debug("board2string   tt0 = %.3f, %.5f per one "%(tt0, tt0/it))
-        logging.debug("correct_moves  tt1 = %.3f, %.5f per one "%(tt1, tt1/it))
-        logging.debug("analyze_nbhood tt3 = %.3f, %.5f per one "%(tt3, tt3/it))
-        logging.debug("correct_moves tt2 = %.3f, %.5f per one "%(tt2, tt2/it))
+        logging.debug("board2string   = %.3f, %.5f per one "%(tt0, tt0/it))
+        logging.debug("analyze_nbhood = %.3f, %.5f per one "%(tt3, tt3/it))
+        logging.debug("correct_moves  = %.3f, %.5f per one "%(tt2, tt2/it))
         logging.debug("it = %d"%(it))
         
     def test_correctness():
@@ -302,6 +301,6 @@ if __name__ == "__main__":
                         s.split())
             assert all (mask[row][col] == res for row, col in moves)
             
-    test_correctness()
+    time_correctness()
 
 
