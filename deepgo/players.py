@@ -24,13 +24,16 @@ class Player(object):
     def __init__(self):
         self.handlers = { 'name' : self.handle_name,
                           'quit' : self.handle_quit }
+        self.name = None
     def genmove(self, state, player):
         """
         :returns: gomill.Move_generator_result
         """
         raise NotImplementedError
     def handle_name(self, args):
-        return self.__class__
+        if self.name is None:
+            return self.__class__
+        return self.name
     def handle_quit(self, args):
         pass
     def get_handlers(self):
