@@ -184,7 +184,7 @@ class DistributionBot(object):
         dist = self.gen_probdist_raw(state, player)
         
         if dist is not None:
-            correct_moves = analyze_board.correct_moves_mask(state.board,  player)
+            correct_moves = analyze_board.board2correct_move_mask(state.board,  player)
             if state.ko_point:
                 correct_moves[state.ko_point[0]][state.ko_point[1]] = 0
                 

@@ -1,12 +1,29 @@
 from itertools import product
 import string
+import logging
+import numpy as np
+from collections import namedtuple
 
 import gomill
 from gomill import boards, sgf, sgf_moves
 
-#NBCOORD_DIAG = tuple(product((1, -1), (1, -1)))
-
+NBCOORD_DIAG = tuple(product((1, -1), (1, -1)))
 NBCOORD = ((-1,0), (1,0), (0,1), (0,-1))
+
+# StringLib.string = {}
+# coord => string number
+# StringLib.liberties = {}
+# string number => set of liberties coords
+StringLib = namedtuple('StringLib', 'string liberties')
+
+# NbInfo for candidate moves (= coord is a currently empty intersection)
+# NbInfo.liberties = {}
+# coord => set of liberties coords in the direct neighborhood
+# NbInfo.friends = {}
+# coord => set of friend strings in the direct nbhood (string = string number)
+# NbInfo.enemies = {}
+# coord => set of enemy strings in the direct nbhood (string = string number)
+NbInfo = namedtuple('NbInfo', 'liberties friends enemies')
 
 def coord_onboard(board, (row, col)):
     return row >= 0 and col >= 0 and row < board.side and col < board.side
@@ -17,11 +34,13 @@ def iter_nbhs(board, (row, col)):
         if coord_onboard(board, (nbx, nby)):
             yield nbx, nby
 
-def board2strings(board):
+def board2string_lib(board):
     """
     Divides board into strings and computes sets of their liberties.
     Takes O(N) time and space, where N is the number of occupied points.
     Algorithm is a simple dfs.
+    
+    :returns: StringLib 
     """
     
     # pt => color
@@ -57,9 +76,87 @@ def board2strings(board):
                 if colors[nb] == colors[n]:
                     fringe.append(nb)
                     
-    return colors, visited, liberties
+    return StringLib(visited, liberties)
 
-def empty_board_mask(board):
+def analyze_nbhood(board, player, string_lib):
+    """
+    Analyses neighborhood of candidate moves (=empty intersections)
+    
+    :returns: NbInfo
+    """
+    # coord = (row,col) which points to an empty intersection
+    # coord => set of liberties in the direct neighborhood
+    nb_libs = {}
+    # coord => set of friend strings in the direct nbhood
+    nb_friend = {}
+    # coord => set of enemy strings in the direct nbhood
+    nb_enemy = {}
+    
+    # fill in correct moves
+    for row in xrange(board.side):
+        for col in xrange(board.side):
+            move = (row, col)
+            if board.get(row, col):
+                continue
+            
+            for nb in iter_nbhs(board, (row, col)):
+                row_nb, col_nb = nb
+                nb_color = board.get(row_nb, col_nb)
+                # liberty
+                if not nb_color:
+                    nb_libs.setdefault(move, set()).add(nb)
+                    continue
+                    
+                # neighbor is not a liberty, so it is a stone, so
+                # it belongs to a string
+                si = string_lib.string[nb]
+                if nb_color == player:
+                    # connect to a friend
+                    nb_friend.setdefault(move, set()).add(si)
+                else:
+                    nb_enemy.setdefault(move, set()).add(si)
+                    
+    return NbInfo(nb_libs, nb_friend, nb_enemy)
+
+def correct_moves_mask(board, player, string_lib, nb_info):
+    """
+    # compute move distribution
+    d = get_move_distribution(board,'B')
+    # filter out incorrect intersections (set to 0)
+    d = d * correct_moves_mask(board, 'b')
+    """
+    mask = np.zeros((board.side, board.side))
+    
+    for row in xrange(board.side):
+        for col in xrange(board.side):
+            move = (row, col)
+            if board.get(row, col):
+                assert not move in nb_info.liberties
+                assert not move in nb_info.friends
+                assert not move in nb_info.enemies
+                #logging.debug("%s invalid: stone there"%(gomill.common.format_vertex((row, col))))
+                continue
+            # has liberties in nbhood
+            if move in nb_info.liberties:
+                mask[row][col] = 1
+                #logging.debug("%s valid: liberty"%(gomill.common.format_vertex((row, col))))
+                continue
+            # has friendly string in nbhood
+            if move in nb_info.friends:
+                # who has different liberty than (row,col)
+                if any( len(string_lib.liberties[si]) > 1 for si in nb_info.friends[move] ):
+                    mask[row][col] = 1
+                    #logging.debug("%s valid: alive friend"%(gomill.common.format_vertex((row, col))))
+                    continue
+            # enemy string in the nbhood, which we capture
+            if move in nb_info.enemies:
+                if any( len(string_lib.liberties[si]) == 1 for si in nb_info.enemies[move] ):
+                    mask[row][col] = 1
+                    #logging.debug("%s valid: killing enemy"%(gomill.common.format_vertex((row, col))))
+                    continue
+    return mask
+
+def board2liberty_mask(board):
     mask = np.ones((board.side, board.side))
     for row in xrange(board.side):
         for col in xrange(board.side):
@@ -67,57 +164,10 @@ def empty_board_mask(board):
                 a[row][col] = 0
     return mask
 
-def correct_moves_mask(board, player):
-    """
-    # compute move distribution
-    d = get_move_distribution(board,'B')
-    # filter out incorrect intersections (set to 0)
-    d = d * correct_moves_mask(board, 'b')
-    """
-    colors, strings, liberties = board2strings(board)
-    
-    mask = np.zeros((board.side, board.side))
-    # fill in correct moves
-    for row in xrange(board.side):
-        for col in xrange(board.side):
-            # move is incorrect if it is nonempty
-            if board.get(row, col):
-                #logging.debug("%s invalid: stone there"%(gomill.common.format_vertex((row, col))))
-                continue
-            # correct if either we have a liberty in the neighborhood
-            # or we dont AND (we connect with friends who do OR
-            #                 we capture something)
-            for nb in iter_nbhs(board, (row, col)):
-                row_nb, col_nb = nb
-                nb_color = board.get(row_nb, col_nb)
-                # liberty
-                if not nb_color:
-                    mask[row][col] = 1
-                    #logging.debug("%s valid: liberty"%(gomill.common.format_vertex((row, col))))
-                    break
-                # neighbor is not a liberty, so it is a stone, so
-                # it belongs to a string and has some liberties
-                libs = liberties[strings[nb]]
-                if nb_color == player:
-                    # connect to a friend
-                    if len(libs - set([(row, col)])):
-                        mask[row][col] = 1
-                        #logging.debug("%s valid: alive friend"%(gomill.common.format_vertex((row, col))))
-                        break
-                else:
-                    # capture some enemy stones
-                    if len(libs) == 1:
-                        # our move must be the last liberty
-                        #logging.debug("%s valid: killing enemy"%(gomill.common.format_vertex((row, col))))
-                        assert libs == set([(row, col)])
-                        mask[row][col] = 1
-                        break
-                    
-            if mask[row][col] == 0:
-                pass
-                #logging.debug("%s invalid: would be suicide"%(gomill.common.format_vertex((row, col))))
-                
-    return mask
+def board2correct_move_mask(board, player):
+    string_lib = board2string_lib(board)
+    nb_info = analyze_nbhood(board, player, string_lib)
+    return correct_moves_mask(board, player, string_lib, nb_info)
 
 if __name__ == "__main__":
     def test_strings():
@@ -168,9 +218,56 @@ if __name__ == "__main__":
         for i in xrange(max(strings.itervalues())):
             print i, len(liberties[i])
 
+    def time_correctness():
+        logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                            level=logging.DEBUG)
+        import time
+        with open("test_sgf/test2.sgf", 'r') as fin:
+            game = gomill.sgf.Sgf_game.from_string(fin.read())
+        
+        tt0 = 0
+        tt1 = 0
+        tt2 = 0
+        tt3 = 0
+        it = 0
+        
+        for i in xrange(10):
+            board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
+            for color, move in movepairs:
+                if move:
+                    row, col = move
+                    board.play(row, col, color)
+                    
+                    s = time.clock()
+                    sl = board2string_lib(board)
+                    tt0 += time.clock() - s
+                    
+                    s = time.clock()
+                    m1 = correct_moves_mask(board, 'w', sl)
+                    tt1 += time.clock() - s
+                    
+                    s = time.clock()
+                    an = analyze_nbhood(board, 'w', sl)
+                    tt3 += time.clock() - s
+                    
+                    s = time.clock()
+                    m2 = correct_moves_mask(board, 'w', sl, an)
+                    tt2 += time.clock() - s
+                    
+                    assert (m1 - m2).sum() == 0
+                    
+                    
+                    it += 1
+        logging.debug("board2string   tt0 = %.3f, %.5f per one "%(tt0, tt0/it))
+        logging.debug("correct_moves  tt1 = %.3f, %.5f per one "%(tt1, tt1/it))
+        logging.debug("analyze_nbhood tt3 = %.3f, %.5f per one "%(tt3, tt3/it))
+        logging.debug("correct_moves tt2 = %.3f, %.5f per one "%(tt2, tt2/it))
+        logging.debug("it = %d"%(it))
+        
     def test_correctness():
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                             level=logging.DEBUG)
+        import time
         with open("test_sgf/correctness.sgf", 'r') as fin:
             game = gomill.sgf.Sgf_game.from_string(fin.read())
         
@@ -180,8 +277,31 @@ if __name__ == "__main__":
                 row, col = move
                 board.play(row, col, color)
                 
-        correct_moves_mask(board, 'w')
-
+        sl = board2string_lib(board)
+        an = analyze_nbhood(board, 'w', sl)
+        mask = correct_moves_mask(board, 'w', sl, an)
+        
+        # see the correcness sgf
+        enemystones = 'A3 B3 A18 G19 M11 D8 C8'
+        ourstones = 'D14 B1 D1 A2 B2 T2 T19 M8 K6'
+        suicides = 'A19 C19 T18 G18 D13 N16'
+        captures = 'E8 T4 Q12'
+        connects = 'K1 C1 A1 K7 T1'
+        alone    = 'Q10 N5 N1 G1 G5 T14 T15'
+        
+        sets = [(enemystones, 0),
+                (ourstones, 0),
+                (suicides, 0),
+                (captures, 1), 
+                (connects, 1),
+                (alone, 1)]
+        
+        for s, res in sets:
+            moves = map(lambda vertex : gomill.common.move_from_vertex(vertex,
+                                                                       board.side),
+                        s.split())
+            assert all (mask[row][col] == res for row, col in moves)
+            
     test_correctness()
 
 

@@ -41,7 +41,7 @@ def get_cube_clark_storkey_2014(board, ko_point, player):
     uint8 is used; so np.packbits should be probably applied before storing
     the data to disk.
     """
-    colors, strings, liberties = analyze_board.board2strings(board)
+    strings, liberties = analyze_board.board2string_lib(board)
     opponent = gomill.common.opponent_of(player)
 
     def is_our_stone((row, col)):
