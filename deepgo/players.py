@@ -124,6 +124,8 @@ class WrappingGnuGoPlayer(Player):
         self.player = player
         self.passing = passing
         self.resigning = resigning
+        
+        self.handlers.update(self.player.handlers)
 
     def genmove(self, state, color):
         result = gtp_states.Move_generator_result()
@@ -140,9 +142,6 @@ class WrappingGnuGoPlayer(Player):
         else:
             logging.debug("WrappingGnuGoPlayer: not listening, descend")
             return self.player.genmove(state, color)
-
-    def handle_quit(self, args):
-        self.player.handle_quit(args)
 
     def gnu_go_move(self, state, color):
         assert isinstance(state.board, gomill.boards.Board) # for wingide code completion
@@ -169,7 +168,7 @@ class DistributionBot(object):
         """
         The core method to implement for distribution bots.
         It needs not
-        
+
         :return: a numpy array of floats of shape (board.side, board.side), or None for pass
                  the array should be normalized to 1
         """
@@ -178,7 +177,7 @@ class DistributionBot(object):
         """
         Generates a correct move probability distribution for the next move,
         using the gen_probdist_raw().
-        
+
         Correct means that it zeroes out probability of playing incorrect move,
         such as move forbidden by ko, suicide and occupied points.
 
@@ -188,17 +187,17 @@ class DistributionBot(object):
                  the array is normalized to 1
         """
         dist = self.gen_probdist_raw(state, player)
-        
+
         if dist is not None:
             correct_moves = analyze_board.board2correct_move_mask(state.board,  player)
             if state.ko_point:
                 correct_moves[state.ko_point[0]][state.ko_point[1]] = 0
-                
+
             # compute some debugging stats of the incorrect moves first
             incorrect_dist = (1 - correct_moves) * dist
             logging.debug("Incorrect moves statistics:\n%s"%(
                                 utils.dist_stats(incorrect_dist)))
-            
+
             # keep only correct moves
             dist = correct_moves * dist
             s = dist.sum()
@@ -207,11 +206,11 @@ class DistributionBot(object):
             else:
                 logging.debug("No valid moves, PASSING.")
                 dist = None
-            
+
         self.last_dist = dist
         self.last_player = player
         return self.last_dist
-    
+
     def move_probabilities(self):
         if self.last_dist is not None:
             ret = []
@@ -220,7 +219,7 @@ class DistributionBot(object):
                                      self.last_dist[row][col]))
             return '\n'.join(ret)
         return ''
-    
+
     def dist_stats(self, top=3):
         if self.last_dist is not None:
             return utils.dist_stats(self.last_dist, top)
