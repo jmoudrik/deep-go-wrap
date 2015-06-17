@@ -50,6 +50,7 @@ class DistWrappingMaxPlayer(Player):
         super(DistWrappingMaxPlayer,  self).__init__()
         self.bot = bot
         self.handlers['ex-dist'] = self.handle_ex_dist
+        self.handlers['move_probabilities'] = self.handle_move_probabilities
     def genmove(self, state, player):
         dist = self.bot.gen_probdist(state, player)
         result = gtp_states.Move_generator_result()
@@ -61,6 +62,8 @@ class DistWrappingMaxPlayer(Player):
         return result
     def handle_quit(self, args):
         self.bot.close()
+    def handle_move_probabilities(self, args):
+        return self.bot.move_probabilities()
     def handle_ex_dist(self, args):
         top = 3
         if args:
@@ -208,6 +211,15 @@ class DistributionBot(object):
         self.last_dist = dist
         self.last_player = player
         return self.last_dist
+    
+    def move_probabilities(self):
+        if self.last_dist is not None:
+            ret = []
+            for row, col in np.transpose(np.nonzero(self.last_dist)):
+                ret.append( "%s %f"%(gomill.common.format_vertex((row, col)),
+                                     self.last_dist[row][col]))
+            return '\n'.join(ret)
+        return ''
     
     def dist_stats(self, top=3):
         if self.last_dist is not None:
