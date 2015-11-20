@@ -1,12 +1,12 @@
 # deep-go-wrap
 Toolkit designed to ease development of your Deep Neural Network models
-for the game of Go.  *Main feature* is the *GTP wrapper* which makes it
+for the game of Go.  *Main feature* is the **GTP wrapper** which makes it
 easy to turn raw probability distribution Convolutional Neural Network
 models (or whatever) into full-featured GTP players.
 
-Another feature is a *data preprocessor* for creating arbitrary *Go
+Another feature is a **data preprocessor** for creating arbitrary *Go
 datasets*, mainly to be used with CNNs.  We store these in a fairly
-universal HDF5 format (supports compression transparently, large sizes,
+universal **HDF5 format** (supports compression transparently, large sizes,
 has wrappers for a lot of languages). Extracting different planes from
 positions, making labels, you name it! :-)
 
