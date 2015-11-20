@@ -57,7 +57,7 @@ def process_game(sgf_fn):
     ys = []
 
     ko_move = None
-    for player, move in moves:
+    for num, (player, move) in enumerate(moves):
         # pass
         if not move:
             break
@@ -71,7 +71,11 @@ def process_game(sgf_fn):
         ys.append(y)
 
         row, col = move
-        ko_move = board.play(row, col, player)
+        try:
+            ko_move = board.play(row, col, player)
+        except Exception as e:
+            logging.warn("Error processing '%s' - move %d : '%s'"%(sgf_fn, num + 1, str(e)))
+            return None
 
     return Xs, ys
 
