@@ -3,7 +3,7 @@
 import sys
 import logging
 import multiprocessing
-from itertools import imap, chain
+from itertools import imap, chain, islice
 import argparse
 import numpy as np
 
@@ -120,6 +120,29 @@ def parse_args():
 
     return parser.parse_args()
 
+
+def batched_imap(function, input_iterator, batch_size=100, imap=imap):
+    """
+        Runs `function` using `imap` on batches of `batch_size`
+        taken from `input_iterator`.
+        yield results.
+
+        Only runs next imap when all previous results have been consumed.
+        This is useful if workers in the imap pool are faster than consumer
+        of the results, because the results might use up a lot of memory.
+    """
+    def next_batch():
+        # list is necessary s.t. we can test for emptiness
+        return list(islice(input_iterator, batch_size))
+
+    batch = next_batch()
+    while batch:
+        logging.debug('Starting next batch.')
+        for res in imap(function, batch):
+            yield res
+        batch = next_batch()
+
+
 def main():
     ## ARGS
     args = parse_args()
@@ -224,13 +247,19 @@ def main():
         dset_y.attrs['original_dtype'] = repr(sample_x.dtype)
         dset_x.attrs['original_example_shape'] = repr(sample_x.shape)
         dset_y.attrs['original_example_shape'] = repr(sample_y.shape)
+
         ## map the job
 
         if args.proc > 1:
-            it = p.imap_unordered(process_game, sys.stdin)
+            def job_imap(*args):
+                return p.imap_unordered(*args)
         else:
+            # do not use pool if only one proc
             init_subprocess(*initargs)
-            it = imap(process_game, sys.stdin)
+            def job_imap(*args):
+                return imap(*args)
+
+        it = batched_imap(process_game, sys.stdin, batch_size=1000, imap=job_imap)
 
         size = 0
         for num, ret in enumerate(it):
