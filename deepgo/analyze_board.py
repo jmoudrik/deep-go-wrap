@@ -5,7 +5,7 @@ import numpy as np
 from collections import namedtuple
 
 import gomill
-from gomill import boards, sgf, sgf_moves
+from gomill import boards, sgf, sgf_moves, ascii_boards
 
 NBCOORD_DIAG = tuple(product((1, -1), (1, -1)))
 NBCOORD = ((-1,0), (1,0), (0,1), (0,-1))
@@ -39,10 +39,10 @@ def board2string_lib(board):
     Divides board into strings and computes sets of their liberties.
     Takes O(N) time and space, where N is the number of occupied points.
     Algorithm is a simple dfs.
-    
-    :returns: StringLib 
+
+    :returns: StringLib
     """
-    
+
     # pt => color
     colors = dict((pt, color) for (color, pt) in board.list_occupied_points() )
     # pt => string number
@@ -75,13 +75,49 @@ def board2string_lib(board):
                     continue
                 if colors[nb] == colors[n]:
                     fringe.append(nb)
-                    
+
     return StringLib(visited, liberties)
+
+def board2dist_from_stones(board, player):
+    """
+    For each point, compute distance to the closest B or W stone.
+    """
+    # max L1 distance on goban is between (0,0) and (18,18) which is 36
+    # so 2*19 is good inf
+    inf = board.side * 2
+
+    def bfs(a, fringe, depth=0):
+        f = set()
+        for pt in fringe:
+            if a[pt] == inf:
+                a[pt] = depth
+            for nb in iter_nbhs(board, pt):
+                if a[nb] == inf:
+                    f.add(nb)
+        if f:
+            bfs(a, f, depth+1)
+        return a
+
+    # fringes
+    us, them = [], []
+
+    for color, pt in board.list_occupied_points():
+        if color == player:
+            us.append(pt)
+        else:
+            them.append(pt)
+
+    def gd(fringe):
+        d = np.full((board.side, board.side), inf)
+        return bfs(d, fringe)
+
+    return gd(us), gd(them)
+
 
 def analyze_nbhood(board, player, string_lib):
     """
     Analyses neighborhood of candidate moves (=empty intersections)
-    
+
     :returns: NbInfo
     """
     # coord = (row,col) which points to an empty intersection
@@ -91,14 +127,14 @@ def analyze_nbhood(board, player, string_lib):
     nb_friend = {}
     # coord => set of enemy strings in the direct nbhood
     nb_enemy = {}
-    
+
     # fill in correct moves
     for row in xrange(board.side):
         for col in xrange(board.side):
             move = (row, col)
             if board.get(row, col):
                 continue
-            
+
             for nb in iter_nbhs(board, (row, col)):
                 row_nb, col_nb = nb
                 nb_color = board.get(row_nb, col_nb)
@@ -106,7 +142,7 @@ def analyze_nbhood(board, player, string_lib):
                 if not nb_color:
                     nb_libs.setdefault(move, set()).add(nb)
                     continue
-                    
+
                 # neighbor is not a liberty, so it is a stone, so
                 # it belongs to a string
                 si = string_lib.string[nb]
@@ -115,7 +151,7 @@ def analyze_nbhood(board, player, string_lib):
                     nb_friend.setdefault(move, set()).add(si)
                 else:
                     nb_enemy.setdefault(move, set()).add(si)
-                    
+
     return NbInfo(nb_libs, nb_friend, nb_enemy)
 
 def correct_moves_mask(board, player, string_lib, nb_info):
@@ -126,7 +162,7 @@ def correct_moves_mask(board, player, string_lib, nb_info):
     d = d * correct_moves_mask(board, 'b')
     """
     mask = np.zeros((board.side, board.side))
-    
+
     for row in xrange(board.side):
         for col in xrange(board.side):
             move = (row, col)
@@ -160,7 +196,7 @@ def board2color_mask(board, player):
     empty = np.zeros((board.side, board.side))
     friend = np.zeros((board.side, board.side))
     enemy = np.zeros((board.side, board.side))
-    
+
     for row in xrange(board.side):
         for col in xrange(board.side):
             color = board.get(row, col)
@@ -176,7 +212,7 @@ def liberties_count(board, string_lib):
     liberties = np.zeros((board.side, board.side))
     for (row, col), si in string_lib.string.iteritems():
         liberties[row][col] = len(string_lib.liberties[si])
-    
+
     return liberties
 
 def board2correct_move_mask(board, player):
@@ -185,51 +221,53 @@ def board2correct_move_mask(board, player):
     return correct_moves_mask(board, player, string_lib, nb_info)
 
 if __name__ == "__main__":
+    def print_board(board):
+        for row in xrange(board.side):
+            print "%2d  " % row,
+            for col in xrange(board.side):
+                pt = board.get(row, col)
+                if pt == None:
+                    print ".",
+                else:
+                    print "%s" % '#' if pt == 'b' else 'o',
+            print
+
+        print '    ',
+        for col in xrange(board.side):
+            print "%s" % string.lowercase[col if col < 8 else col +1],
+        print
+
+
     def test_strings():
         with open("test_sgf/test1.sgf", 'r') as fin:
             game = gomill.sgf.Sgf_game.from_string(fin.read())
-        
+
         board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
         for color, move in movepairs:
             if move:
                 row, col = move
                 board.play(row, col, color)
-        
+
         colors, strings, liberties = board2strings(board)
-       
+
         # XXX
-        
+        print_board(board)
+
         for row in xrange(board.side):
-            print "%2d  " % row, 
+            print "%2d  " % row,
             for col in xrange(board.side):
                 pt = board.get(row, col)
                 if pt == None:
-                    print ".", 
+                    print " .",
                 else:
-                    print "%s" % '#' if pt == 'b' else 'o', 
+                    print "%2d" % strings[row, col],
             print
-                
-        print '    ', 
+
+        print '    ',
         for col in xrange(board.side):
-            print "%s" % string.lowercase[col if col < 8 else col +1], 
+            print " %s" % string.lowercase[col if col < 8 else col +1],
         print
-        
-            
-        for row in xrange(board.side):
-            print "%2d  " % row, 
-            for col in xrange(board.side):
-                pt = board.get(row, col)
-                if pt == None:
-                    print " .", 
-                else:
-                    print "%2d" % strings[row, col], 
-            print
-                
-        print '    ', 
-        for col in xrange(board.side):
-            print " %s" % string.lowercase[col if col < 8 else col +1], 
-        print
-        
+
         for i in xrange(max(strings.itervalues())):
             print i, len(liberties[i])
 
@@ -239,54 +277,54 @@ if __name__ == "__main__":
         import time
         with open("test_sgf/test2.sgf", 'r') as fin:
             game = gomill.sgf.Sgf_game.from_string(fin.read())
-        
+
         tt0 = 0
         tt2 = 0
         tt3 = 0
         it = 0
-        
+
         for i in xrange(10):
             board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
             for color, move in movepairs:
                 if move:
                     row, col = move
                     board.play(row, col, color)
-                    
+
                     s = time.clock()
                     sl = board2string_lib(board)
                     tt0 += time.clock() - s
-                    
+
                     s = time.clock()
                     an = analyze_nbhood(board, 'w', sl)
                     tt3 += time.clock() - s
-                    
+
                     s = time.clock()
                     m2 = correct_moves_mask(board, 'w', sl, an)
                     tt2 += time.clock() - s
-                    
+
                     it += 1
         logging.debug("board2string   = %.3f, %.5f per one "%(tt0, tt0/it))
         logging.debug("analyze_nbhood = %.3f, %.5f per one "%(tt3, tt3/it))
         logging.debug("correct_moves  = %.3f, %.5f per one "%(tt2, tt2/it))
         logging.debug("it = %d"%(it))
-        
+
     def test_correctness():
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                             level=logging.DEBUG)
         import time
         with open("test_sgf/correctness.sgf", 'r') as fin:
             game = gomill.sgf.Sgf_game.from_string(fin.read())
-        
+
         board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
         for color, move in movepairs:
             if move:
                 row, col = move
                 board.play(row, col, color)
-                
+
         sl = board2string_lib(board)
         an = analyze_nbhood(board, 'w', sl)
         mask = correct_moves_mask(board, 'w', sl, an)
-        
+
         # see the correcness sgf
         enemystones = 'A3 B3 A18 G19 M11 D8 C8'
         ourstones = 'D14 B1 D1 A2 B2 T2 T19 M8 K6'
@@ -294,20 +332,37 @@ if __name__ == "__main__":
         captures = 'E8 T4 Q12'
         connects = 'K1 C1 A1 K7 T1'
         alone    = 'Q10 N5 N1 G1 G5 T14 T15'
-        
+
         sets = [(enemystones, 0),
                 (ourstones, 0),
                 (suicides, 0),
-                (captures, 1), 
+                (captures, 1),
                 (connects, 1),
                 (alone, 1)]
-        
+
         for s, res in sets:
             moves = map(lambda vertex : gomill.common.move_from_vertex(vertex,
                                                                        board.side),
                         s.split())
             assert all (mask[row][col] == res for row, col in moves)
-            
-    time_correctness()
+
+    def test_libdist():
+        b = gomill.boards.Board(3)
+        moves = [((0,1), 'b'),
+                ((2,0), 'w'),
+                ((1,2), 'b'),
+                ((1,1), 'b')]
+
+        b2 = gomill.boards.Board(3)
+        for (x,y),col in moves:
+            b.play(x,y, col)
+            b2.play(2-x,y, col) # mirror s.t. we have the same coords
+                                # with numpy arrays
+
+        db, dw = board2dist_from_stones(b, 'w')
+        print gomill.ascii_boards.render_board(b2)
+        print db
+        print dw
+    test_libdist()
 
 

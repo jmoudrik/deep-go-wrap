@@ -52,9 +52,9 @@ def main_deepcl():
     # 3) make a player which plays the move with max probability
     #    and wrap it by GnuGo to pass correctly
     player =  WrappingGnuGoPlayer(DistWrappingMaxPlayer(deepcl_bot))
-    
+
     player.name = "DeepCL CNN Bot, v0.1"
-    
+
     # 4) make the GTP engine
     engine = make_engine(player)
     gomill.gtp_engine.run_interactive_gtp_session(engine)

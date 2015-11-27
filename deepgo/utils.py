@@ -6,6 +6,42 @@ import subprocess
 import gomill
 from gomill import common, boards
 
+def border_mark(boardsize=19):
+    a = np.zeros((boardsize, boardsize), dtype='uint8')
+    a[0,:]=1
+    a[-1,:]=1
+    a[:,0]=1
+    a[:,-1]=1
+
+    return a
+
+def l1_distance(pt1, pt2):
+    (x1, y1), (x2, y2) = pt1, pt2
+    dx, dy = x1 - x2, y1 - y2
+    return abs(dx) + abs(dy)
+
+def sq_distance(pt1, pt2):
+    (x1, y1), (x2, y2) = pt1, pt2
+    dx, dy = x1 - x2, y1 - y2
+    return dx**2 + dy**2
+
+def l2_distance(pt1, pt2):
+    return np.sqrt(sq_distance(pt1, pt2))
+
+def gridcular_distance(pt1, pt2):
+    (x1, y1), (x2, y2) = pt1, pt2
+    dx, dy = abs(x1 - x2), abs(y1 - y2)
+    return dx + dy + max(dx, dy)
+
+def distances_from_pt(dist, point, boardsize=19):
+    a = np.zeros((boardsize, boardsize), dtype='float32')
+
+    for x in xrange(boardsize):
+        for y in xrange(boardsize):
+            a[x][y] = dist(point, (x,y))
+
+    return a
+
 def dist_stats(dist, top=3):
     def ind2pt(ind):
         return ind / side, ind % side
@@ -32,11 +68,36 @@ def dist_stats(dist, top=3):
         prob = dist[row][col]
         s += prob
         ret.append("%d: \t"%(num+1) + format_move_prob((row, col), prob))
-    
+
     ret.append("top %d moves cover: %.2f %%" % (top, 100* s))
 
 
     return "\n".join(ret)
+
+def raw_history(board, history):
+    """
+    History counter, returns array of time since the last stone
+    at location was played.
+    Watch out, this should be masked by valid moves, since stones that
+    are taken out are still present!
+
+    In case of multiple stones being played at one place (ko, playing under stones, ...)
+    the last one is remembered
+
+    last move = 1
+    first one = #of moves
+    empty points = #of moves +1
+
+    """
+    a = np.zeros((board.side, board.side))
+    time = 0
+    for color, move in history:
+        time += 1
+        # first move should have 1
+        a[move] = time
+
+    # The first one now will later be last!
+    return time + 1 - a
 
 def get_gnu_go_response(sgf_filename, color):
     """
@@ -50,10 +111,10 @@ def get_gnu_go_response(sgf_filename, color):
                          stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
-                         
+
     stdout, stderr = p.communicate(GTP_CMD)
 
-    
+
     if stderr:
         logging.warn("GnuGo stderr: '%s'"%stderr)
 

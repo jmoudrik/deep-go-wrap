@@ -11,21 +11,25 @@ import h5py
 import gomill
 import gomill.sgf, gomill.sgf_moves
 
-from deepgo import cubes
+from deepgo import cubes, state, rank
 
 """
 This reads sgf's from stdin, processes them in a parallel manner to extract
 pairs (cube_encoding_position, move_to_play) and writes the data into a file.
 
-The major bottleneck is currently the inneficiency of analysing the goban
+Some comments about speed.
+
+The major bottleneck in workers is currently the inneficiency of analysing the goban
 in the cubes submodule, where we analyse each position independently of
 the previous ones, while we could build strings/liberties data structures
 incrementaly and thus save resources.
 
-But I think this is not worth the effort at the moment; you can easily
-process 200 000 games in under a 24 hours on 4-core commodity laptop. The
-dataset is created (almost) only once and you will probably be spending much
-more time training the CNN anyway.
+However, (on multicore machine, e.g. i7) the actual bottleneck is
+the file io and HDF compression in the master process.
+
+Currently, you can easily process 200 000 games in under a 24 hours on 4-core
+commodity laptop. The dataset is created (almost) only once and you will
+probably be spending much more time training the CNN anyway.
 """
 
 
@@ -38,6 +42,14 @@ def init_subprocess(plane, label, allowed_boardsizes):
     get_label = cubes.reg_label[label]
     board_filter = lambda board : board.side in allowed_boardsizes
 
+def get_rank(root_node, key):
+    try:
+        prop = root_node.get(key)
+    except:
+        return None
+
+    return rank.Rank.from_string(prop)
+
 def process_game(sgf_fn):
     sgf_fn = sgf_fn.strip()
     try :
@@ -46,26 +58,39 @@ def process_game(sgf_fn):
 
         logging.info("Processing '%s'"%sgf_fn)
         board, moves = gomill.sgf_moves.get_setup_and_moves(game)
+
     except Exception as e:
         logging.warn("Error processing '%s': %s"%(sgf_fn, str(e)))
         return None
 
+
     if not board_filter(board) or not moves:
         return None
+
+    root = game.get_root()
+    ranks = rank.BrWr(get_rank(root, 'BR'),
+                      get_rank(root, 'WR'))
 
     Xs = []
     ys = []
 
     ko_move = None
+    history = []
     for num, (player, move) in enumerate(moves):
         # pass
         if not move:
             break
 
-        # encode current position
-        x = get_cube(board, ko_move, player)
-        # target is the next move
-        y = get_label(move)
+        try:
+            # encode current position
+            x = get_cube(state.State(board, ko_move, history,  ranks), player)
+            # get y data from future moves
+            # (usually only first element will be taken in account)
+            y = get_label(islice(moves, num, len(moves)), board.side)
+        except Exception as e:
+            logging.warn("Error encoding '%s' - move %d : '%s'"%(sgf_fn, num + 1, str(e)))
+            # TODO Should we use the data we have already?
+            return None
 
         Xs.append(x)
         ys.append(y)
@@ -74,8 +99,11 @@ def process_game(sgf_fn):
         try:
             ko_move = board.play(row, col, player)
         except Exception as e:
-            logging.warn("Error processing '%s' - move %d : '%s'"%(sgf_fn, num + 1, str(e)))
+            logging.warn("Error re-playing '%s' - move %d : '%s'"%(sgf_fn, num + 1, str(e)))
+            # this basically means that the game has illegal moves
+            # lets skip it altogether in case it is garbled
             return None
+        history.append((player, move))
 
     return Xs, ys
 
@@ -167,8 +195,8 @@ def main():
     # first determine example shapes
     b = gomill.boards.Board(args.boardsize)
     init_subprocess(*initargs)
-    sample_x = get_cube(b, None, 'b')
-    sample_y = get_label((0, 0), args.boardsize)
+    sample_x = get_cube(state.State(b, None, [], rank.BrWr(None, None)), 'b')
+    sample_y = get_label(iter([('b',(0, 0))]), args.boardsize)
 
     # shape in dataset
     dshape_x = sample_x.shape
