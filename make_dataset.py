@@ -253,19 +253,24 @@ def main():
         logging.debug("y.shape: %s -> %s"%(repr(sample_y.shape), repr(dshape_y) if dshape_y else 'flat'))
         logging.debug("y.dtype: %s -> %s"%(sample_y.dtype, dtype_y))
 
-        dset_x = f.create_dataset(args.xname,
-                                  (0,) + dshape_x,
-                                  # infinite number of examples
-                                  maxshape=(None,) + dshape_x,
-                                  dtype=dtype_x,
-                                  # we will have a lot of zeros in the data
-                                  compression='gzip', compression_opts=9)
+        try:
+            dset_x = f.create_dataset(args.xname,
+                                    (0,) + dshape_x,
+                                    # infinite number of examples
+                                    maxshape=(None,) + dshape_x,
+                                    dtype=dtype_x,
+                                    # we will have a lot of zeros in the data
+                                    compression='gzip', compression_opts=9)
 
-        dset_y = f.create_dataset(args.yname,
-                                  (0,) + dshape_y,
-                                  maxshape=(None,) + dshape_y,
-                                  dtype=dtype_y,
-                                  compression='gzip', compression_opts=9)
+            dset_y = f.create_dataset(args.yname,
+                                    (0,) + dshape_y,
+                                    maxshape=(None,) + dshape_y,
+                                    dtype=dtype_y,
+                                    compression='gzip', compression_opts=9)
+        except Exception as e:
+            logging.error("Cannot create dataset. File exists? (%s)"%(str(e)))
+            sys.exit(1)
+
 
         dset_x.attrs['name'] = args.plane
         dset_y.attrs['name'] = args.label
