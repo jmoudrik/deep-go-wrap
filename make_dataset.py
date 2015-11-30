@@ -260,13 +260,13 @@ def main():
                                     maxshape=(None,) + dshape_x,
                                     dtype=dtype_x,
                                     # we will have a lot of zeros in the data
-                                    compression='gzip', compression_opts=9)
+                                    compression='gzip', compression_opts=6)
 
             dset_y = f.create_dataset(args.yname,
                                     (0,) + dshape_y,
                                     maxshape=(None,) + dshape_y,
                                     dtype=dtype_y,
-                                    compression='gzip', compression_opts=9)
+                                    compression='gzip', compression_opts=6)
         except Exception as e:
             logging.error("Cannot create dataset. File exists? (%s)"%(str(e)))
             sys.exit(1)
