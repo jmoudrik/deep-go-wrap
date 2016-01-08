@@ -1,49 +1,19 @@
 # deep-go-wrap
 Toolkit designed to ease development of your Deep Neural Network models
-for the game of Go.  *Main feature* is the **GTP wrapper** which makes it
-easy to turn raw probability distribution Convolutional Neural Network
-models (or whatever) into full-featured GTP players.
+for the game of Go.
 
-Another feature is a **data preprocessor** for creating arbitrary *Go
-datasets*, mainly to be used with CNNs.  We store these in a fairly
-universal **HDF5 format** (supports compression transparently, large sizes,
-has wrappers for a lot of languages). Extracting different planes from
-positions, making labels, you name it! :-)
+  * **[CNN Dataset Construction](#hdf)** - making HDF5 datasets for your Convolutional Neural Networks.
+  * **[GTP wrapper](#gtp)** - wrapper turning your CNN to standalone [GTP](http://www.lysator.liu.se/~gunnar/gtp/) player.
 
-GTP wrapper
------------
- * interface for plugging in various Deep Network architectures
-    * so far only DeepCL nets (*working*), pylearn2 on the way, easy to extend
- * I/O handling, data planes extraction
- * full GTP support using gomill library
- * pass/resign implementation, using GnuGo as an oracle. Note that this slows thigs down a bit, GnuGo being slower than CNN.
- * move correctness checking
- * **Do you have other great ideas? Contribute, or make an issue!**
-
-#### DeepCL setup (under construction)
-1. Train your deepcl model
-    1. get data https://github.com/hughperkins/kgsgo-dataset-preprocessor
-    2. get DeepCL, probably [my fork](https://github.com/jmoudrik/DeepCL) of [Hugh Perkins's repo](https://github.com/hughperkins/DeepCL)
-    which is sure to work, the changes aren't big and will probably be merged to the 
-    Hugh's repo, so this is for the time being.
-    3. train your model
-    4. or, instead of the last step, just download my test small weights (precision 19.6%, trained in 10 minutes, very weak ;-), from [here](http://j2m.cz/~jm/weights.dat) (binary file, might not work on different archs), trained with:
-
-        ```./deepclrun numtrain=200000 dataset=kgsgoall 'netdef=32c3{z}-relu-4*(8c3{z}-relu)-128n-tanh-361n' numepochs=20 learningrate=0.0001```
-2. edit path to DeepCL and model's weights file in the *deepgowrap.py* (for the time being)
-    * now the deepgowrap acts as an GTP program, so you can run it:
-
-    ```echo -e "boardsize 19\nclear_board B\nquit" | ./deepgowrap.py```
-
-HDF Go Datasets
+<a name="hdf"></a>HDF Go Datasets
 ------------------
   * different planes support, easy to extend
-     * as in [Clark and Storkey 2014](http://arxiv.org/abs/1412.3409)
+     * [Clark and Storkey 2014](http://arxiv.org/abs/1412.3409)
+     * [Tian and Zhu 2015](http://arxiv.org/abs/1511.06410)
      * planes from DeepCL
-     * others to come
-  * parallel processing
-  * the HDF dataset created is compatible with pylearn2 for instance, but *NOT with DeepCL*
-  
+     * others
+  * parallel processing (MPI parallel HDF writing under way)
+  * the HDF dataset created is compatible with pylearn2 for instance, but *NOT with DeepCL*. To create dataset for DeepCL, see*[hdf2deepcl_v2.py](hdf2deepcl_v2.py)* tool.
 
 #### A naive bash example how to make a dataset
 ```bash
@@ -75,6 +45,40 @@ The ```--flatten``` option just reshapes data from ```(7,19,19)``` to ```(7*19*1
      * 3.2kB per game: ```--flatten -l expanded_label_packed -p clark_storkey_2014_packed```
   * Flattened data, features packed using numpy.packbits, label just one class number
      * 2.9kB per game: ```--flatten -l simple_label -p clark_storkey_2014_packed```
+
+<a name="gtp"></a>GTP wrapper
+-----------------------------
+ * interface for plugging in various Deep Network architectures
+    * caffe nets, DeepCL nets (*working*), easy to extend
+ * I/O handling, data planes extraction
+ * full GTP support using gomill library
+ * pass/resign implementation, using GnuGo as an oracle. Note that this slows thigs down a bit, GnuGo being slower than CNN.
+ * move correctness checking
+ * **Do you have other great ideas? Contribute, or make an issue!**
+
+#### caffe network setup
+1. Adding up new net is easy. Here I use Detlef Schmicker's model as an example -- see [deepgo/bot_caffe.py](/deepgo/bot_caffe.py).
+2. You can get (Detlef's 54% CNN)[http://physik.de/CNNlast.tar.gz]
+
+3. Edit path to prototxt and trained model file in the [deepgowrap.py](deepgowrap.py) (you may have to uncomment main_deepcl in the code)
+    * now the deepgowrap acts as an GTP program, so you can run it:
+
+    ```echo -e "boardsize 19\nclear_board B\nquit" | ./deepgowrap.py```
+
+#### DeepCL setup (slightly obsolete)
+1. Train your deepcl model
+    1. get data https://github.com/hughperkins/kgsgo-dataset-preprocessor
+    2. get DeepCL, probably [my fork](https://github.com/jmoudrik/DeepCL) of [Hugh Perkins's repo](https://github.com/hughperkins/DeepCL)
+    which is sure to work, the changes aren't big and will probably be merged to the 
+    Hugh's repo, so this is for the time being.
+    3. train your model
+    4. or, instead of the last step, just download my test small weights (precision 19.6%, trained in 10 minutes, extremely weak, from [here](http://j2m.cz/~jm/weights.dat) (binary file, might not work on different archs), trained with:
+
+        ```./deepclrun numtrain=200000 dataset=kgsgoall 'netdef=32c3{z}-relu-4*(8c3{z}-relu)-128n-tanh-361n' numepochs=20 learningrate=0.0001```
+2. edit path to DeepCL and model's weights file in the [deepgowrap.py](deepgowrap.py) (you may have to uncomment main_deepcl in the code)
+    * now the deepgowrap acts as an GTP program, so you can run it:
+
+    ```echo -e "boardsize 19\nclear_board B\nquit" | ./deepgowrap.py```
 
 
 Requirements
