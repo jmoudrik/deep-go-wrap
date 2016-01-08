@@ -66,10 +66,13 @@ def main_detlef():
                         filename="test.log")
 
     from deepgo import bot_caffe
+    # 0) you need to have caffe installed of course :-)
     import caffe
 
     # 1) set up caffe_net
-    # substitute with your own data
+    # you got to download the CNN from (as of January 2016)
+    # http://physik.de/CNNlast.tar.gz
+    # and change the path of files below
     caffe_net = caffe.Net('golast19.prototxt', 'golast.trained', 0)
 
     # 2) set up detlef distribution bot
@@ -78,6 +81,10 @@ def main_detlef():
     # 3) make a player which plays the move with max probability
     #    and wrap it by GnuGo to pass correctly
     player =  WrappingGnuGoPlayer(DistWrappingMaxPlayer(detlef_bot))
+
+    # change this to this if you do not have GnuGo installed (but the
+    # bot will not pass nor resign...
+    #player =  DistWrappingMaxPlayer(detlef_bot)
 
     player.name = "Detlef's 54% CNN Bot"
 
