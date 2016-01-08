@@ -62,8 +62,7 @@ def main_deepcl():
 
 def main_detlef():
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
-                        level=logging.DEBUG,
-                        filename="test.log")
+                        level=logging.DEBUG)
 
     from deepgo import bot_caffe
     # 0) you need to have caffe installed of course :-)
