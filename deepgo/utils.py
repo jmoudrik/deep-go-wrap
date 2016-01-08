@@ -81,6 +81,8 @@ def raw_history(board, history):
     Watch out, this should be masked by valid moves, since stones that
     are taken out are still present!
 
+    history is a list of gomill.gtp_states.History_move objects
+
     In case of multiple stones being played at one place (ko, playing under stones, ...)
     the last one is remembered
 
@@ -91,13 +93,16 @@ def raw_history(board, history):
     """
     a = np.zeros((board.side, board.side))
     time = 0
-    for color, move in history:
+    for history_move in history:
+        color, move = history_move.colour, history_move.move
         time += 1
+        assert move is not None
         # first move should have 1
         a[move] = time
 
+    empty, full = a == 0, a != 0
     # The first one now will later be last!
-    return time + 1 - a
+    return empty * (-1) + full * (time + 1 - a)
 
 def get_gnu_go_response(sgf_filename, color):
     """
