@@ -11,7 +11,6 @@ from gomill import gtp_engine, gtp_states
 
 from deepgo.players import *
 
-from deepgo import bot_deepcl
 
 def make_engine(player):
     """Return a Gtp_engine_protocol which runs the specified player."""
@@ -38,6 +37,8 @@ def main_deepcl():
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                         level=logging.DEBUG)
 
+    from deepgo import bot_deepcl
+
     ## DCL_PATH = '/PATH/TO/YOUR/DeepCL'
     DCL_PATH = '/home/jm/prj/DeepCL/'
     # 1) set up io
@@ -59,7 +60,33 @@ def main_deepcl():
     engine = make_engine(player)
     gomill.gtp_engine.run_interactive_gtp_session(engine)
 
+def main_detlef():
+    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                        level=logging.DEBUG,
+                        filename="test.log")
+
+    from deepgo import bot_caffe
+    import caffe
+
+    # 1) set up caffe_net
+    # substitute with your own data
+    caffe_net = caffe.Net('golast19.prototxt', 'golast.trained', 0)
+
+    # 2) set up detlef distribution bot
+    detlef_bot = bot_caffe.DetlefDistBot(caffe_net)
+
+    # 3) make a player which plays the move with max probability
+    #    and wrap it by GnuGo to pass correctly
+    player =  WrappingGnuGoPlayer(DistWrappingMaxPlayer(detlef_bot))
+
+    player.name = "Detlef's 54% CNN Bot"
+
+    # 4) make the GTP engine
+    engine = make_engine(player)
+    gomill.gtp_engine.run_interactive_gtp_session(engine)
+
 if __name__ == "__main__":
     #main_random()
-    main_deepcl()
+    #main_deepcl()
+    main_detlef()
 

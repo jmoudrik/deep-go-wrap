@@ -25,8 +25,10 @@ class Player(object):
         self.handlers = { 'name' : self.handle_name,
                           'quit' : self.handle_quit }
         self.name = None
-    def genmove(self, state, player):
+    def genmove(self, game_state, player):
         """
+        game_state is gomill.gtp_states.Game_state
+
         :returns: gomill.Move_generator_result
         """
         raise NotImplementedError
@@ -38,6 +40,8 @@ class Player(object):
         pass
     def get_handlers(self):
         return self.handlers
+    def __repr__(self):
+        return "<%s>"%self.handle_name()
 
 class DistWrappingMaxPlayer(Player):
     """
@@ -51,8 +55,8 @@ class DistWrappingMaxPlayer(Player):
         self.bot = bot
         self.handlers['ex-dist'] = self.handle_ex_dist
         self.handlers['move_probabilities'] = self.handle_move_probabilities
-    def genmove(self, state, player):
-        dist = self.bot.gen_probdist(state, player)
+    def genmove(self, game_state, player):
+        dist = self.bot.gen_probdist(game_state, player)
         result = gtp_states.Move_generator_result()
         if dist is not None:
             move = np.unravel_index(np.argmax(dist), dist.shape)
@@ -85,13 +89,13 @@ class DistWrappingSamplingPlayer(Player):
     def __init__(self, bot):
         super(DistWrappingSamplingPlayer,  self).__init__()
         self.bot = bot
-    def genmove(self, state, player):
-        dist = self.bot.gen_probdist(state, player)
+    def genmove(self, game_state, player):
+        dist = self.bot.gen_probdist(game_state, player)
         result = gtp_states.Move_generator_result()
         if dist is not None:
             # choose an intersection with probability given by the dist
-            coord = np.random.choice((state.board.side ** 2), 1, p=dist.ravel())[0]
-            move = (coord / state.board.side,  coord % state.board.side)
+            coord = np.random.choice((game_state.board.side ** 2), 1, p=dist.ravel())[0]
+            move = (coord / game_state.board.side,  coord % game_state.board.side)
             result.move = move
         else:
             result.pass_move = True
@@ -101,18 +105,18 @@ class DistWrappingSamplingPlayer(Player):
 
 
 class RandomPlayer(Player):
-    def genmove(self, state, player):
+    def genmove(self, game_state, player):
         result = gtp_states.Move_generator_result()
         # pass
-        if state.move_history and not state.move_history[-1].move:
+        if game_state.move_history and not game_state.move_history[-1].move:
             result.pass_move = True
             return result
         else:
             for i in xrange(10):
-                row, col = np.random.choice(state.board.side, 2)
+                row, col = np.random.choice(game_state.board.side, 2)
                 ## TODO this might be incorrect move
                 # but nobody will use the RandomPlayer anyway
-                if not state.board.get(row, col):
+                if not game_state.board.get(row, col):
                     result.move =  (row, col)
                     return result
             result.resign = True
@@ -124,14 +128,14 @@ class WrappingGnuGoPlayer(Player):
         self.player = player
         self.passing = passing
         self.resigning = resigning
-        
+
         self.handlers.update(self.player.handlers)
 
-    def genmove(self, state, color):
+    def genmove(self, game_state, color):
         result = gtp_states.Move_generator_result()
 
         logging.debug("WrappingGnuGoPlayer: enter")
-        move = self.gnu_go_move(state, color)
+        move = self.gnu_go_move(game_state, color)
         # pass if GnuGo tells us to do so
         if self.passing and move == 'pass':
             result.pass_move = True
@@ -141,15 +145,15 @@ class WrappingGnuGoPlayer(Player):
             return result
         else:
             logging.debug("WrappingGnuGoPlayer: not listening, descend")
-            return self.player.genmove(state, color)
+            return self.player.genmove(game_state, color)
 
-    def gnu_go_move(self, state, color):
-        assert isinstance(state.board, gomill.boards.Board) # for wingide code completion
+    def gnu_go_move(self, game_state, color):
+        assert isinstance(game_state.board, gomill.boards.Board) # for wingide code completion
 
-        game = gomill.sgf.Sgf_game(size=state.board.side)
-        gomill.sgf_moves.set_initial_position(game, state.board)
+        game = gomill.sgf.Sgf_game(size=game_state.board.side)
+        gomill.sgf_moves.set_initial_position(game, game_state.board)
         node = game.get_root()
-        node.set('KM', state.komi)
+        node.set('KM', game_state.komi)
         node.set('PL', color)
 
         with tempfile.NamedTemporaryFile() as sgf_file:
@@ -164,7 +168,7 @@ class DistributionBot(object):
     def __init__(self):
         self.last_dist = None
         self.last_player = None
-    def gen_probdist_raw(self, state, player):
+    def gen_probdist_raw(self, game_state, player):
         """
         The core method to implement for distribution bots.
         It needs not
@@ -173,7 +177,7 @@ class DistributionBot(object):
                  the array should be normalized to 1
         """
         raise NotImplementedError
-    def gen_probdist(self, state, player):
+    def gen_probdist(self, game_state, player):
         """
         Generates a correct move probability distribution for the next move,
         using the gen_probdist_raw().
@@ -186,12 +190,12 @@ class DistributionBot(object):
         :return: a numpy array of floats of shape (board.side, board.side), or None for pass
                  the array is normalized to 1
         """
-        dist = self.gen_probdist_raw(state, player)
+        dist = self.gen_probdist_raw(game_state, player)
 
         if dist is not None:
-            correct_moves = analyze_board.board2correct_move_mask(state.board,  player)
-            if state.ko_point:
-                correct_moves[state.ko_point[0]][state.ko_point[1]] = 0
+            correct_moves = analyze_board.board2correct_move_mask(game_state.board,  player)
+            if game_state.ko_point:
+                correct_moves[game_state.ko_point[0]][game_state.ko_point[1]] = 0
 
             # compute some debugging stats of the incorrect moves first
             incorrect_dist = (1 - correct_moves) * dist
@@ -231,8 +235,8 @@ class DistributionBot(object):
 
 
 class RandomDistBot(DistributionBot):
-    def gen_probdist_raw(self, state, player):
-        return np.random.random((state.board.side, state.board.side))
+    def gen_probdist_raw(self, game_state, player):
+        return np.random.random((game_state.board.side, game_state.board.side))
 
 
 if __name__ == "__main__":

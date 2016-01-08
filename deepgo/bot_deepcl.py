@@ -9,9 +9,10 @@ import numpy as np
 import time
 
 from players import DistributionBot, DistWrappingMaxPlayer
-import gomill
 
 import cubes
+from state import State
+import rank
 
 class DeepCL_IO(object):
     def __init__(self,
@@ -42,12 +43,12 @@ class DeepCL_IO(object):
         for res_opt in ['outputfile', 'batchsize']:
             if res_opt in options:
                 logging.warn("DeepCL_IO: '%s' option is reserved, overriding."%res_opt)
-                
+
         options['batchsize'] = 1
 
         # first create the named pipes for IO
         self.pipe_to, self.pipe_from = None,  None
-        
+
         self.tempdir = tempfile.mkdtemp()
 
         self.pipe_fn_from = os.path.join(self.tempdir, "PIPE_from")
@@ -100,7 +101,7 @@ class DeepCL_IO(object):
     def close_pipes(self):
         if self.pipe_to !=  None:
             self.pipe_to.close()
-            
+
         if self.pipe_from !=  None:
             self.pipe_from.close()
 
@@ -130,7 +131,12 @@ class DeepCLDistBot(DistributionBot):
         self.deepcl_io = deepcl_io
 
     def gen_probdist_raw(self, state, player):
-        cube = cubes.get_cube_deepcl(state.board, state.ko_point, player)
+        cube = cubes.get_cube_deepcl(State(state.board,
+                                           state.ko_point,
+                                           # history and ranks are not used by
+                                           # deepcl cubes
+                                           [], BrWr(None, None)),
+                                     player)
 
         try:
             logging.debug("Sending data, cube.shape = %s, %d B"%(cube.shape,
@@ -151,12 +157,14 @@ class DeepCLDistBot(DistributionBot):
 
 if __name__ == "__main__":
     def test_bot():
+        import gomill
+
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                             level=logging.DEBUG)
 
         DCL_PATH = '/home/jm/prj/DeepCL/'
         deepcl_io = bot_deepcl.DeepCL_IO(os.path.join(DCL_PATH, 'build/predict'), options={
-            'weightsfile': os.path.join(DCL_PATH, "build/weights.dat"), 
+            'weightsfile': os.path.join(DCL_PATH, "build/weights.dat"),
             'outputformat': 'binary',
                 })
 

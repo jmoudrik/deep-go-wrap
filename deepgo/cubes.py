@@ -14,7 +14,31 @@ from rank import Rank, BrWr
 
     Returned cubes are usually in unpacked float form,
     unsuitable to be directly stored in a file, because it gets rather big.
+
+    There are two families
+        * labels
+        * cubes
+
+    1) labels
+        * the y's for prediction
+        * args:
+            future_moves    iterator of future moves...
+            boardsize
+    2) cubes
+        * the X's for prediction
+        * args:
+            state           game state deepgo.states.State
+                            (see deepgo/state/ for details)
+            player          'w' or 'b'
 """
+
+class XX:
+    def __init__(self, n=0):
+        self.n=0
+    def __call__(self):
+        old = self.n
+        self.n += 1
+        return old
 
 # name -> (function, dtype)
 reg_cube = {}
@@ -150,6 +174,7 @@ def get_cube_tian_zhu_2015(state, player):
     cube[8] = enemy * 1
     cube[9] = empty * 1
 
+    # watch out, history since it gives -1 for empty points
     history = np.exp(- 0.1 * raw_history(state.board, state.history))
     cube[10] = friend * history
     cube[11] = enemy * history
@@ -171,6 +196,63 @@ def get_cube_tian_zhu_2015(state, player):
     dist_friend, dist_enemy = analyze_board.board2dist_from_stones(state.board, player)
     cube[23] = empty * (dist_friend < dist_enemy)
     cube[24] = empty * (dist_friend > dist_enemy)
+
+    return cube
+
+@register(reg_cube, 'detlef')
+def get_cube_detlef(state, player):
+    """
+    Planes compatible with the
+    CNN kindly provided by Detlef Schmicker. See
+    http://computer-go.org/pipermail/computer-go/2015-December/008324.html
+
+    The net should (as of January 2016) be available here:
+    http://physik.de/CNNlast.tar.gz
+
+    Description:
+    1
+    2
+    3
+    > 4 libs playing color
+    1
+    2
+    3
+    > 4 libs opponent color
+    Empty points
+    last move
+    second last move
+    third last move
+    forth last move
+    """
+    cube = np.zeros((13, state.board.side, state.board.side), dtype='float32')
+
+    # count liberties
+    string_lib = analyze_board.board2string_lib(state.board)
+    lib_count = analyze_board.liberties_count(state.board, string_lib)
+
+    # mask for different colors
+    empty, friend, enemy = analyze_board.board2color_mask(state.board, player)
+
+    our_liberties = friend * lib_count
+    enemy_liberties = enemy * lib_count
+
+    cube[0] = our_liberties == 1
+    cube[1] = our_liberties == 2
+    cube[2] = our_liberties == 3
+    cube[3] = our_liberties >= 4
+    cube[4] = enemy_liberties == 1
+    cube[5] = enemy_liberties == 2
+    cube[6] = enemy_liberties == 3
+    cube[7] = enemy_liberties >= 4
+
+    cube[8] = empty * 1
+
+    # watch out, history gives -1 for empty points
+    history = raw_history(state.board, state.history)
+    cube[9]  = 1*(history == 1)
+    cube[10] = 1*(history == 2)
+    cube[11] = 1*(history == 3)
+    cube[12] = 1*(history == 4)
 
     return cube
 
