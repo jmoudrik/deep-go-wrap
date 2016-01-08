@@ -135,6 +135,7 @@ def get_cube_tian_zhu_2015(state, player):
     our_liberties = friend * lib_count
     enemy_liberties = enemy * lib_count
 
+
     cube[0] = our_liberties == 1
     cube[1] = our_liberties == 2
     cube[2] = our_liberties >= 3
@@ -203,14 +204,15 @@ if __name__ == "__main__":
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                             level=logging.DEBUG)
         import time
-        with open("test_sgf/test1.sgf", 'r') as fin:
+        from state import State
+        with open("../test_sgf/test1.sgf", 'r') as fin:
             game = gomill.sgf.Sgf_game.from_string(fin.read())
 
         tt0 = 0
         tt1 = 0
         it = 0
 
-        for i in xrange(10):
+        for i in xrange(2):
             board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
             history = []
             for color, move in movepairs:
@@ -221,7 +223,8 @@ if __name__ == "__main__":
 
 
                     s = time.clock()
-                    c1 = get_cube_clark_storkey_2014(State(board, None, history), gomill.common.opponent_of(color))
+                    c1 = get_cube_tian_zhu_2015(State(board, None, history, BrWr(Rank.from_string('1p'), None)), gomill.common.opponent_of(color))
+                    #c1 = get_cube_clark_storkey_2014(State(board, None, history), gomill.common.opponent_of(color))
                     tt0 += time.clock() - s
 
                     #s = time.clock()
@@ -230,10 +233,11 @@ if __name__ == "__main__":
 
                     #assert np.array_equal(c1, c2)
 
-                    history.append((move, color))
+                    history.append((color, move))
 
         logging.debug("tt0 = %.3f, %.5f per one "%(tt0, tt0/it))
         logging.debug("tt1 = %.3f, %.5f per one "%(tt1, tt1/it))
 
-    test_cube()
+    import cProfile
+    cProfile.run("time_cube()")
 

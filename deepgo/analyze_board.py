@@ -7,6 +7,8 @@ from collections import namedtuple
 import gomill
 from gomill import boards, sgf, sgf_moves, ascii_boards
 
+import utils
+
 NBCOORD_DIAG = tuple(product((1, -1), (1, -1)))
 NBCOORD = ((-1,0), (1,0), (0,1), (0,-1))
 
@@ -31,7 +33,7 @@ def coord_onboard(board, (row, col)):
 def iter_nbhs(board, (row, col)):
     for dx, dy in NBCOORD:
         nbx, nby = row + dx, col + dy
-        if coord_onboard(board, (nbx, nby)):
+        if 0 <= nbx < board.side and 0 <= nby < board.side:
             yield nbx, nby
 
 def board2string_lib(board):
@@ -78,7 +80,7 @@ def board2string_lib(board):
 
     return StringLib(visited, liberties)
 
-def board2dist_from_stones(board, player):
+def board2dist_from_stones(board, player, maxdepth=4):
     """
     For each point, compute distance to the closest B or W stone.
     """
@@ -87,32 +89,33 @@ def board2dist_from_stones(board, player):
     inf = board.side * 2
 
     def bfs(a, fringe, depth=0):
+        if depth > maxdepth:
+            return a
+
         f = set()
         for pt in fringe:
-            if a[pt] == inf:
-                a[pt] = depth
+            a[pt] = depth
             for nb in iter_nbhs(board, pt):
-                if a[nb] == inf:
+                if a[nb] == inf and nb not in fringe:
                     f.add(nb)
         if f:
             bfs(a, f, depth+1)
         return a
 
     # fringes
-    us, them = [], []
+    us, them = set(), set()
 
     for color, pt in board.list_occupied_points():
         if color == player:
-            us.append(pt)
+            us.add(pt)
         else:
-            them.append(pt)
+            them.add(pt)
 
     def gd(fringe):
-        d = np.full((board.side, board.side), inf)
+        d = np.full((board.side, board.side), inf, dtype='uint8')
         return bfs(d, fringe)
 
     return gd(us), gd(them)
-
 
 def analyze_nbhood(board, player, string_lib):
     """
@@ -193,9 +196,9 @@ def correct_moves_mask(board, player, string_lib, nb_info):
     return mask
 
 def board2color_mask(board, player):
-    empty = np.zeros((board.side, board.side))
-    friend = np.zeros((board.side, board.side))
-    enemy = np.zeros((board.side, board.side))
+    empty = np.zeros((board.side, board.side), dtype='uint8')
+    friend = np.zeros((board.side, board.side), dtype='uint8')
+    enemy = np.zeros((board.side, board.side), dtype='uint8')
 
     for row in xrange(board.side):
         for col in xrange(board.side):
@@ -219,6 +222,46 @@ def board2correct_move_mask(board, player):
     string_lib = board2string_lib(board)
     nb_info = analyze_nbhood(board, player, string_lib)
     return correct_moves_mask(board, player, string_lib, nb_info)
+
+def construct_closeset(boardsize, depth):
+    """
+    Ugly & slow, only run once
+    """
+    ret = []
+    for row in xrange(boardsize):
+        ret.append([])
+        for col in xrange(boardsize):
+            # l1 distance
+            cand=[]
+            for x, y in product(xrange(row-depth, row+depth +1),
+                                xrange(col-depth, col+depth +1)):
+                if 0 <= x < boardsize and 0 <= y < boardsize:
+                    l1 = utils.l1_distance((row, col), (x,y))
+                    if 0 <= l1 <= depth:
+                        cand.append((l1,x,y))
+            # s.t. neigbors are ordered by the distance
+            cand.sort()
+            ret[-1].append((np.array([c[0] for c in cand]),
+                            np.array([c[1] for c in cand]),
+                            np.array([c[2] for c in cand])))
+
+    return ret
+
+def npclose(a, empty, closeset, verbose=False):
+    inf = a.shape[0] * 2
+    ret = np.full(a.shape, inf)
+    it = np.nditer(empty, flags=['multi_index'])
+    while not it.finished:
+        x,y = it.multi_index
+
+        dist,xs,ys = closeset[x][y]
+        arg = a[xs,ys].argmax()
+        if a[xs[arg],ys[arg]]:
+            ret[x][y] = dist[arg]
+
+        it.iternext()
+
+    return ret
 
 if __name__ == "__main__":
     def print_board(board):
@@ -360,9 +403,81 @@ if __name__ == "__main__":
                                 # with numpy arrays
 
         db, dw = board2dist_from_stones(b, 'w')
-        print gomill.ascii_boards.render_board(b2)
-        print db
-        print dw
-    test_libdist()
 
+        #closest = db
+        print gomill.ascii_boards.render_board(b2)
+        print db < dw
+        print dw < db
+
+    def time_bfs():
+        logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
+                            level=logging.DEBUG)
+        import time
+        with open("../test_sgf/test2.sgf", 'r') as fin:
+            game = gomill.sgf.Sgf_game.from_string(fin.read())
+
+        closeset = construct_closeset(19, 4)
+
+        for i in xrange(1):
+            board, movepairs = gomill.sgf_moves.get_setup_and_moves(game)
+
+            num = 0
+            for color, move in movepairs:
+                if move:
+                    num+=1
+                    row, col = move
+                    board.play(row, col, color)
+
+
+                    empty, friend, enemy = board2color_mask(board, 'w')
+                    cb = npclose(friend, empty, closeset)
+
+                    break
+                    cw = npclose(enemy, empty, closeset)
+
+                    continue
+                    db, dw = board2dist_from_stones(board, 'w', 4)
+
+                    r1 = (db < dw) != (cb < cw)
+                    r2 = (db > dw) != (cb > cw)
+
+                    if r1.any() or r2.any():
+                        print gomill.ascii_boards.render_board(board)
+                        print "dist us"
+                        print db
+                        print "dist them"
+                        print dw
+                        print "nclose us"
+                        print cb
+                        print "nclose them"
+                        print cw
+                        print num
+                        if r1.any():
+                            i = np.argmax(r1)
+                            i = np.unravel_index([i],db.shape)
+                            i = i[0][0],i[1][0]
+                            print "r1[%s] == True: %d < %d = %s, %d < %d = %s"%(i,
+                                                    db[i], dw[i], (db < dw)[i],
+                                                    cb[i], cw[i], (cb < cw)[i])
+                        if r2.any():
+                            i = np.argmax(r2)
+                            i = np.unravel_index([i],db.shape)
+                            i = i[0][0],i[1][0]
+                            print "r2[%s] == True: %d > %d = %s, %d > %d = %s"%(i,
+                                                    db[i], dw[i], (db > dw)[i],
+                                                    cb[i], cw[i], (cb > cw)[i])
+                        assert False
+
+    def run():
+        closeset = construct_closeset(19, 4)
+        empty, friend, enemy = board2color_mask(gomill.boards.Board(side=19), 'w')
+        for a in xrange(2000):
+            cb = npclose(friend, empty, closeset)
+
+    import cProfile
+    cProfile.run("run()")
+#    cProfile.run("time_bfs()")
+
+    time_bfs()
+    #test_libdist()
 
