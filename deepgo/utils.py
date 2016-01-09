@@ -47,7 +47,7 @@ def dist_stats(dist, top=3):
         return ind / side, ind % side
 
     def format_move_prob((row, col), prob):
-        return "%s  %.6f"%( gomill.common.format_vertex((row, col)), prob)
+        return "%s  %.3f %%"%( gomill.common.format_vertex((row, col)), 100*prob)
 
     assert dist.shape[1] == dist.shape[0]
     side = dist.shape[0]
@@ -57,8 +57,8 @@ def dist_stats(dist, top=3):
 
     # some statistics
     row, col = ind2pt(sort_ind[0])
-    ret.append("mean: \t%.6f"%(np.mean(dist)))
-    ret.append("stddev: %.6f"%(np.std(dist)))
+    mn, std = np.mean(dist), np.std(dist)
+    ret.append(u"mean: \t%.3f %% \u00B1 %.2f %%"%(100*mn, 100* std))
     #ret.append("min: \t" + format_move_prob((row, col), dist[row][col]))
 
     s = 0.0

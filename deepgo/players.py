@@ -35,35 +35,41 @@ class Player(object):
         raise NotImplementedError
     def handle_name(self, args):
         if self.name is None:
-            return self.__class__
+            return self.__class__.__name__
         return self.name
     def handle_quit(self, args):
         pass
     def get_handlers(self):
         return self.handlers
-    def __repr__(self):
+    def __str__(self):
         return "<%s>"%self.handle_name([])
 
 class DistWrappingMaxPlayer(Player):
     """
     A simple wrapping bot which chooses next move to be the one with the biggest (therefore the name)
     probability. The probabilities are computed by the wrapped bot's gen_probdist().
-
-    Never passes.
     """
     def __init__(self, bot):
         super(DistWrappingMaxPlayer,  self).__init__()
         self.bot = bot
         self.handlers['ex-dist'] = self.handle_ex_dist
         self.handlers['move_probabilities'] = self.handle_move_probabilities
+        self.move_num = 0
     def genmove(self, game_state, player):
+        self.move_num += 1
         dist = self.bot.gen_probdist(game_state, player)
         result = gtp_states.Move_generator_result()
         if dist is not None:
             move = np.unravel_index(np.argmax(dist), dist.shape)
             result.move = move
+            logging.debug("%s valid moves\n%s"%(self,
+                                                utils.dist_stats(dist)))
+            logging.debug("%s move %d: playing %s"%(self,
+                                                    self.move_num,
+                                                    gomill.common.format_vertex(move)))
         else:
             result.pass_move = True
+            logging.debug("%s move %d: playing pass"%(self, self.move_num))
         return result
     def handle_quit(self, args):
         self.bot.close()
@@ -137,7 +143,7 @@ class WrappingGnuGoPlayer(Player):
     def genmove(self, game_state, color):
         result = gtp_states.Move_generator_result()
 
-        logging.debug("WrappingGnuGoPlayer: enter")
+        logging.debug("%s enter"%(self))
         move = self.gnu_go_move(game_state, color)
         # pass if GnuGo tells us to do so
         if self.passing and move == 'pass':
@@ -147,7 +153,7 @@ class WrappingGnuGoPlayer(Player):
             result.resign = True
             return result
         else:
-            logging.debug("WrappingGnuGoPlayer: not listening, descend")
+            logging.debug("%s not listening, descend"%(self))
             return self.player.genmove(game_state, color)
 
     def gnu_go_move(self, game_state, color):
@@ -171,6 +177,8 @@ class DistributionBot(object):
     def __init__(self):
         self.last_dist = None
         self.last_player = None
+    def __str__(self):
+        return "<%s>"%(self.__class__.__name__)
     def gen_probdist_raw(self, game_state, player):
         """
         The core method to implement for distribution bots.
@@ -202,7 +210,7 @@ class DistributionBot(object):
 
             # compute some debugging stats of the incorrect moves first
             incorrect_dist = (1 - correct_moves) * dist
-            logging.debug("Incorrect moves statistics:\n%s"%(
+            logging.debug("%s incorrect moves\n%s"%(self,
                                 utils.dist_stats(incorrect_dist)))
 
             # keep only correct moves

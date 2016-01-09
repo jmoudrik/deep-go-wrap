@@ -30,12 +30,17 @@ class DetlefDistBot(DistributionBot):
         cube = cubes.get_cube_detlef(gomill_gamestate2state(game_state), player)
         cube = cube.reshape( (1,) + cube.shape)
 
-        logging.debug("%s Sending data of shape=%s"%( repr(self), cube.shape))
+        logging.debug("%s sending data of shape=%s"%(self, cube.shape))
 
-        ret = self.caffe_net.forward_all(**{'data':cube})['ip']
-        logging.debug("%s Read response of shape=%s"%(repr(self), ret.shape))
+        resp = self.caffe_net.forward_all(**{'data':cube})['ip']
+        logging.debug("%s read response of shape=%s"%(self, resp.shape))
+
         # FIXME update, 128 output channels is detlef's mistake :-)
-        ret = ret.reshape((128, game_state.board.side, game_state.board.side))[0]
+        resp = resp.reshape((128, game_state.board.side, game_state.board.side))
+        tot = resp.sum()
+        ret = resp[0]
+        logging.debug("%s trimming channelstook off %.3f %%"%(self,
+                                                                100 * (tot - ret.sum())/tot))
 
         return ret / ret.sum()
 
