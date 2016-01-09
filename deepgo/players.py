@@ -3,6 +3,7 @@ from __future__ import print_function
 import logging
 import numpy as np
 import tempfile
+import copy
 
 import gomill
 from gomill import common, boards, sgf, sgf_moves, gtp_states
@@ -41,7 +42,7 @@ class Player(object):
     def get_handlers(self):
         return self.handlers
     def __repr__(self):
-        return "<%s>"%self.handle_name()
+        return "<%s>"%self.handle_name([])
 
 class DistWrappingMaxPlayer(Player):
     """
@@ -129,7 +130,9 @@ class WrappingGnuGoPlayer(Player):
         self.passing = passing
         self.resigning = resigning
 
-        self.handlers.update(self.player.handlers)
+        hp = copy.copy(player.get_handlers())
+        hp.update(self.handlers)
+        self.handlers = hp
 
     def genmove(self, game_state, color):
         result = gtp_states.Move_generator_result()
