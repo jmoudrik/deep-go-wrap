@@ -33,7 +33,7 @@ class DetlefDistBot(DistributionBot):
         logging.debug("%s sending data of shape=%s"%(self, cube.shape))
 
         resp = self.caffe_net.forward_all(**{'data':cube})['ip']
-        logging.debug("%s read response of shape=%s"%(self, resp.shape))
+        logging.debug("%s read response of shape=%s"%(self, res.shape))
 
         # FIXME update, 128 output channels is detlef's mistake :-)
         resp = resp.reshape((128, game_state.board.side, game_state.board.side))

@@ -1,3 +1,6 @@
+.ropeproject/
+ignore/
+*hdf
 *.pyc
 *.wpr
 *.wpu
