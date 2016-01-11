@@ -10,6 +10,7 @@ import numpy as np
 import h5py
 import gomill
 import gomill.sgf, gomill.sgf_moves
+from gomill.gtp_states import History_move
 
 from deepgo import cubes, state, rank
 
@@ -86,9 +87,9 @@ def process_game(sgf_fn):
             x = get_cube(state.State(board, ko_move, history,  ranks), player)
             # get y data from future moves
             # (usually only first element will be taken in account)
-            y = get_label(islice(moves, num, len(moves)), board.side)
+            y = get_label(islice(moves, num, len(moves)), board, player)
         except Exception as e:
-            logging.warn("Error encoding '%s' - move %d : '%s'"%(sgf_fn, num + 1, str(e)))
+            logging.exception("Error encoding '%s' - move %d"%(sgf_fn, num + 1))
             # TODO Should we use the data we have already?
             return None
 
@@ -103,7 +104,7 @@ def process_game(sgf_fn):
             # this basically means that the game has illegal moves
             # lets skip it altogether in case it is garbled
             return None
-        history.append((player, move))
+        history.append(History_move(player, move))
 
     return Xs, ys
 
@@ -117,10 +118,10 @@ def parse_args():
                             ' move. The results are written to HDF5 file.')
     parser.add_argument('filename', metavar='FILENAME',
                         help='HDF5 FILENAME to store the dataset to')
-    parser.add_argument('--x-name',  dest='xname',
+    parser.add_argument('-x', '--x-name',  dest='xname',
                         help='HDF5 dataset name to store the xs to',
                         default='xs')
-    parser.add_argument('--y-name', dest='yname',
+    parser.add_argument('-y', '--y-name', dest='yname',
                         help='HDF5 dataset name to store the ys to',
                         default='ys')
     parser.add_argument('-p', '--plane', type=str, choices=cubes.reg_cube.keys(),
@@ -196,7 +197,7 @@ def main():
     b = gomill.boards.Board(args.boardsize)
     init_subprocess(*initargs)
     sample_x = get_cube(state.State(b, None, [], rank.BrWr(None, None)), 'b')
-    sample_y = get_label(iter([('b',(0, 0))]), args.boardsize)
+    sample_y = get_label(iter([('b',(0, 0))]), b, 'b')
 
     # shape in dataset
     dshape_x = sample_x.shape

@@ -164,7 +164,7 @@ def correct_moves_mask(board, player, string_lib, nb_info):
     # filter out incorrect intersections (set to 0)
     d = d * correct_moves_mask(board, 'b')
     """
-    mask = np.zeros((board.side, board.side))
+    mask = np.zeros((board.side, board.side), dtype='uint8')
 
     for row in xrange(board.side):
         for col in xrange(board.side):
