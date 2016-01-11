@@ -18,15 +18,17 @@ from deepgo import cubes, state, rank
 This reads sgf's from stdin, processes them in a parallel manner to extract
 pairs (cube_encoding_position, move_to_play) and writes the data into a file.
 
-Some comments about speed.
+Some comments about speed:
 
-The major bottleneck in workers is currently the inneficiency of analysing the goban
+Most time in workers is currently spent in routines for analysing the goban
 in the cubes submodule, where we analyse each position independently of
 the previous ones, while we could build strings/liberties data structures
 incrementaly and thus save resources.
 
-However, (on multicore machine, e.g. i7) the actual bottleneck is
-the file io and HDF compression in the master process.
+The workers do however scale up linearly with number of cores. What does not
+and what is the actual bottleneck on multicore machine (with slower & bigger
+cubes, such as the tian_zhu_2015 cube) is the serial HDF file io and compression
+in the master process. Truly parallel implementation using MPI is planned.
 
 Currently, you can easily process 200 000 games in under a 24 hours on 4-core
 commodity laptop. The dataset is created (almost) only once and you will

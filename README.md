@@ -11,9 +11,9 @@ for the game of Go.
      * [Clark and Storkey 2014](http://arxiv.org/abs/1412.3409)
      * [Tian and Zhu 2015](http://arxiv.org/abs/1511.06410)
      * planes from DeepCL
-     * others
-  * parallel processing (MPI parallel HDF writing under way)
-  * the HDF dataset created is compatible with pylearn2 for instance, but *NOT with DeepCL*. To create dataset for DeepCL, see*[hdf2deepcl_v2.py](hdf2deepcl_v2.py)* tool.
+     * others (e.g. Detlef Schmicker's 54%)
+  * parallel processing of games
+  * the HDF dataset created is compatible with pylearn2 for instance, but NOT with DeepCL. To create dataset for DeepCL, see [hdf2deepcl_v2.py](hdf2deepcl_v2.py) tool.
 
 #### A naive bash example how to make a dataset
 ```bash
@@ -31,8 +31,7 @@ cat filelist | ./process_sgf.py -p clark_storkey_2014_packed dataset.hdf5
 #### Comparison of different dataset making options
 The following list summarizes file size for different options. The summary
 was made from 200 random GoGoD games (39805 example pairs ~ 200 pairs per game).
-Running times were basically the same (~ 1.8 sec per game on commodity laptop),
-the code scales up linearly based on the number of your cores. HDF5 compresses
+Running times were basically the same (~ 1.8 sec per game on commodity laptop). HDF5 compresses
 the dataset transparently using gzip -9. The feature cube is composed of 7 planes
 used in [Clark an Storkey's 2014 paper](http://arxiv.org/pdf/1412.3409).
 The ```--flatten``` option just reshapes data from ```(7,19,19)``` to ```(7*19*19,)```.
