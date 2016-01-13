@@ -22,7 +22,7 @@ from rank import Rank, BrWr
     1) labels
         * the y's for prediction
         * args:
-            future_moves    iterator of future moves...
+            future    iterator of future moves...
             board
             player          'w' or 'b' -- next move's player
     2) cubes
@@ -55,28 +55,31 @@ def register(where, name):
 #
 
 @register(reg_label, 'simple_label')
-def get_label_simple(future_moves, board, player):
-    player_next, (row, col) = future_moves.next()
+def get_label_simple(s, player):
+    assert s.future
+    player_next, (row, col) = s.future[0]
     assert player == player_next
-    return np.array((board.side * row + col,), dtype='uint8')
+    return np.array((s.board.side * row + col,), dtype='uint8')
 
 @register(reg_label, 'expanded_label')
-def get_label_exp(future_moves, board, player):
-    player_next, (row, col) = future_moves.next()
+def get_label_exp(s, player):
+    assert s.future
+    player_next, (row, col) = s.future[0]
     assert player == player_next
-    ret = np.zeros((board.side, board.side), dtype='uint8')
+    ret = np.zeros((s.board.side, s.board.side), dtype='uint8')
     ret[row][col] = 1
     return ret
 
 @register(reg_label, 'expanded_label_packed')
-def get_label_exp_packed(future_moves, board, player):
-    player_next, (row, col) = future_moves.next()
+def get_label_exp_packed(s, player):
+    assert s.future
+    player_next, (row, col) = s.future[0]
     assert player == player_next
-    label = get_label_exp((row, col), board.side)
+    label = get_label_exp((row, col), s.board.side)
     return np.packbits(label)
 
 @register(reg_label, '3_moves_lookahead_expanded_label')
-def get_label_future3_exp(future_moves, board, player):
+def get_label_future3_exp(s, player):
     """
     Planes used in
     Yuandong Tian, Yan Zhu, 2015
@@ -85,10 +88,10 @@ def get_label_future3_exp(future_moves, board, player):
 
     Predicting next 3 moves instead of just one.
     """
-    ret = np.zeros((3, board.side, board.side), dtype='uint8')
+    ret = np.zeros((3, s.board.side, s.board.side), dtype='uint8')
 
     last_player = gomill.common.opponent_of(player)
-    for plane, (player_next, move) in enumerate(islice(future_moves, 3)):
+    for plane, (player_next, move) in enumerate(s.future[:3]):
         assert player_next != last_player
         # pass otw
         if move:
@@ -98,12 +101,16 @@ def get_label_future3_exp(future_moves, board, player):
     return ret
 
 @register(reg_label, 'correct_moves')
-def get_label_correct(future_moves, board, player):
-    return analyze_board.board2correct_move_mask(board, player)
+def get_label_correct(s, player):
+    return analyze_board.board2correct_move_mask(s.board, player)
 
 #
 # Cubes
 #
+
+@register(reg_cube, 'nop')
+def get_cube_nop(state, player):
+    return np.zeros((1, state.board.side, state.board.side), dtype='float32')
 
 @register(reg_cube, 'clark_storkey_2014')
 def get_cube_clark_storkey_2014(*args):
@@ -306,6 +313,38 @@ def get_cube_detlefko(state, player):
 
     return cube
 
+
+@register(reg_cube, 'detlefko_conthist')
+def get_cube_detlefko_conthist(state, player):
+    cube = np.zeros((12, state.board.side, state.board.side), dtype='float32')
+
+    string_lib = analyze_board.board2string_lib(state.board)
+    lib_count = analyze_board.liberties_count(state.board, string_lib)
+
+    empty, friend, enemy = analyze_board.board2color_mask(state.board, player)
+
+    our_liberties, enemy_liberties = friend * lib_count, enemy * lib_count
+
+    cube[0] = our_liberties == 1
+    cube[1] = our_liberties == 2
+    cube[2] = our_liberties == 3
+    cube[3] = our_liberties >= 4
+    cube[4] = enemy_liberties == 1
+    cube[5] = enemy_liberties == 2
+    cube[6] = enemy_liberties == 3
+    cube[7] = enemy_liberties >= 4
+
+    cube[8] = empty * 1
+
+    if state.ko_point is not None:
+        ko_row, ko_col = state.ko_point
+        cube[9][ko_row][ko_col] = 1
+
+    # watch out, history since it gives -1 for empty points
+    history = np.exp(- 0.1 * raw_history(state.board, state.history))
+    cube[10] = friend * history
+    cube[11] = enemy * history
+    return cube
 
 if __name__ == "__main__":
     def test_cube():

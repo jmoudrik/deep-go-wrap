@@ -86,10 +86,11 @@ def process_game(sgf_fn):
 
         try:
             # encode current position
-            x = get_cube(state.State(board, ko_move, history,  ranks), player)
+            s = state.State(board, ko_move, history, moves[num:len(moves)], ranks)
+            x = get_cube(s, player)
             # get y data from future moves
             # (usually only first element will be taken in account)
-            y = get_label(islice(moves, num, len(moves)), board, player)
+            y = get_label(s, player)
         except Exception as e:
             logging.exception("Error encoding '%s' - move %d"%(sgf_fn, num + 1))
             # TODO Should we use the data we have already?
