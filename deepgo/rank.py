@@ -27,8 +27,11 @@ class Rank:
         return argmin( zip(ranks, dists) )
 
     @staticmethod
-    def from_string(string):
-        mo = re.match('^([1-9][0-9]?) ?([kdp]).*', string.lower())
+    def from_string(string, strict=False):
+        rexp = '^([1-9][0-9]?) ?([kdp]).*'
+        if strict:
+            rexp = '^([1-9][0-9]?) ?([kdp])$'
+        mo = re.match(rexp, string.lower())
         if not mo:
             return None
         try:

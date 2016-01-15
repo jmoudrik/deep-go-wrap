@@ -51,7 +51,7 @@ def get_rank(root_node, key):
     except:
         return None
 
-    return rank.Rank.from_string(prop)
+    return rank.Rank.from_string(prop, True)
 
 def process_game(sgf_fn):
     sgf_fn = sgf_fn.strip()
@@ -91,13 +91,18 @@ def process_game(sgf_fn):
             # get y data from future moves
             # (usually only first element will be taken in account)
             y = get_label(s, player)
+        except cubes.SkipGame as e:
+            logging.info("Skipping game '%s': %s"%(sgf_fn, str(e)))
+            return None
         except Exception as e:
             logging.exception("Error encoding '%s' - move %d"%(sgf_fn, num + 1))
             # TODO Should we use the data we have already?
             return None
 
-        Xs.append(x)
-        ys.append(y)
+        # None skips
+        if x is not None and y is not None:
+            Xs.append(x)
+            ys.append(y)
 
         row, col = move
         try:
@@ -199,8 +204,11 @@ def main():
     # first determine example shapes
     b = gomill.boards.Board(args.boardsize)
     init_subprocess(*initargs)
-    sample_x = get_cube(state.State(b, None, [], rank.BrWr(None, None)), 'b')
-    sample_y = get_label(iter([('b',(0, 0))]), b, 'b')
+    s = state.State(b, None, [], [], rank.BrWr(rank.Rank.from_key(1), # 1k
+                                               rank.Rank.from_key(2)  # 2k
+                                               ))
+    sample_x = get_cube(s, 'b')
+    sample_y = get_label(s, 'b')
 
     # shape in dataset
     dshape_x = sample_x.shape
