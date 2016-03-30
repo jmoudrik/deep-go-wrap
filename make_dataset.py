@@ -204,7 +204,7 @@ def main():
     # first determine example shapes
     b = gomill.boards.Board(args.boardsize)
     init_subprocess(*initargs)
-    s = state.State(b, None, [], [], rank.BrWr(rank.Rank.from_key(1), # 1k
+    s = state.State(b, None, [], [('b',(3,3))], rank.BrWr(rank.Rank.from_key(1), # 1k
                                                rank.Rank.from_key(2)  # 2k
                                                ))
     sample_x = get_cube(s, 'b')
