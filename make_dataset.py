@@ -39,11 +39,18 @@ probably be spending much more time training the CNN anyway.
 def flatten(list_of_lists):
     return chain.from_iterable(list_of_lists)
 
-def init_subprocess(plane, label, allowed_boardsizes):
-    global get_cube, get_label, board_filter
+def init_subprocess(plane, label, allowed_boardsizes, allowed_ranks):
+    global get_cube, get_label, board_filter, ranks_filter
     get_cube = cubes.reg_cube[plane]
     get_label = cubes.reg_label[label]
     board_filter = lambda board : board.side in allowed_boardsizes
+
+    def filter_one_rank(rank):
+        if not rank:
+            return None in allowed_ranks
+        return rank.key() in allowed_ranks
+    def ranks_filter(brwr):
+        return all(map(filter_one_rank, brwr))
 
 def get_rank(root_node, key):
     try:
@@ -68,11 +75,16 @@ def process_game(sgf_fn):
 
 
     if not board_filter(board) or not moves:
+        logging.info("Skipping game '%s': boardsize not allowed"%(sgf_fn))
         return None
 
     root = game.get_root()
     ranks = rank.BrWr(get_rank(root, 'BR'),
                       get_rank(root, 'WR'))
+
+    if not ranks_filter(ranks):
+        logging.info("Skipping game '%s': rank not allowed"%(sgf_fn))
+        return None
 
     Xs = []
     ys = []
@@ -116,6 +128,51 @@ def process_game(sgf_fn):
 
     return Xs, ys
 
+def parse_rank_specification(s):
+    """
+    parse_rank_specification('1,2,3')
+    parse_rank_specification('1..3')
+    parse_rank_specification('-1..3')
+    parse_rank_specification('-1..3,5..6')
+    parse_rank_specification('5..5,1..4')
+    parse_rank_specification('')
+    """
+    if not s:
+        return set([None])
+
+    ret = []
+    s = s.replace(' ','')
+    categories = s.split(',')
+
+    for cat in categories:
+        cs = cat.split('..')
+        try:
+            if len(cs) == 1:
+                ret.append(int(cs[0]))
+            elif len(cs) == 2:
+                fr, to = map(int,cs)
+                if to < fr:
+                    raise RuntimeError('Empty range %s'%(cat))
+
+                ret.extend(range(fr, to+1))
+            else:
+                raise ValueError()
+
+        except ValueError:
+            raise RuntimeError('Could not parse rank info on token "%s"'%(cat))
+
+    return set(ret)
+
+
+class RankSpecAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+             raise ValueError("nargs not allowed")
+        super(RankSpecAction, self).__init__(option_strings, dest, **kwargs)
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, parse_rank_specification(values))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
                 description='Processes sgf to create datasets for teaching Deep'
@@ -143,6 +200,11 @@ def parse_args():
                         help='turn off the (stderr) debug logs')
     parser.add_argument('-s', dest='boardsize', type=int,
                         help='specify boardsize', default=19)
+    parser.add_argument('-r', '--rank', dest='rankspec', action=RankSpecAction,
+                        help='Specify rank to be limited. 1kyu=1, 30kyu=30, 1dan=0,'
+                             ' 10dan=-9. Example values "1,2,3", "1..30", "-10..30",'
+                             ' etc. Empty string marks no limit on rank.',
+                        default=parse_rank_specification(''))
     parser.add_argument('--flatten', dest='flatten', action='store_true',
                         help='Flatten out the examples. (19, 19, 4) shape becomes ( 19 * 19 * 4,)', default=False)
     parser.add_argument('--shrink-units', dest='shrink_units', action='store_true',
@@ -192,7 +254,7 @@ def main():
 
     ## INIT pool of workers
 
-    initargs=(args.plane, args.label, (args.boardsize, ))
+    initargs=(args.plane, args.label, (args.boardsize, ), args.rankspec)
     p = multiprocessing.Pool(args.proc, initializer=init_subprocess, initargs=initargs)
 
     ## INIT shapes and transformations
