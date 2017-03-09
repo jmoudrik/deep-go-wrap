@@ -1,4 +1,5 @@
 .ropeproject/
+.idea/
 ignore/
 *hdf
 *.pyc
