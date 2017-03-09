@@ -46,9 +46,12 @@ def init_subprocess(plane, label, allowed_boardsizes, allowed_ranks):
     board_filter = lambda board : board.side in allowed_boardsizes
 
     def filter_one_rank(rank):
+        if allowed_ranks is None:
+            return True
         if not rank:
             return None in allowed_ranks
         return rank.key() in allowed_ranks
+
     def ranks_filter(brwr):
         return all(map(filter_one_rank, brwr))
 
@@ -130,15 +133,25 @@ def process_game(sgf_fn):
 
 def parse_rank_specification(s):
     """
-    parse_rank_specification('1,2,3')
-    parse_rank_specification('1..3')
-    parse_rank_specification('-1..3')
-    parse_rank_specification('-1..3,5..6')
-    parse_rank_specification('5..5,1..4')
+    Parses info about rank specification, used to filter games by player's ranks.
+    Returns None (all ranks allowed),
+    or a set of possible values
+    (None as a possible value in the set means that we should include games without rank info)
+
+
+    # returns None, all ranks possible
     parse_rank_specification('')
+
+    # returns set([1, 2, 3, None])), 1, 2, 3 allowed, as well as missing rank info
+    parse_rank_specification('1..3,')
+
+    # returns set([None])), only games WITHOUT rank info are allowed
+    parse_rank_specification(',')
+
+    See test for more examples.
     """
     if not s:
-        return set([None])
+        return None
 
     ret = []
     s = s.replace(' ','')
@@ -148,7 +161,10 @@ def parse_rank_specification(s):
         cs = cat.split('..')
         try:
             if len(cs) == 1:
-                ret.append(int(cs[0]))
+                if not cs[0]:
+                    ret.append(None)
+                else:
+                    ret.append(int(cs[0]))
             elif len(cs) == 2:
                 fr, to = map(int,cs)
                 if to < fr:
@@ -162,7 +178,6 @@ def parse_rank_specification(s):
             raise RuntimeError('Could not parse rank info on token "%s"'%(cat))
 
     return set(ret)
-
 
 class RankSpecAction(argparse.Action):
     def __init__(self, option_strings, dest, nargs=None, **kwargs):
