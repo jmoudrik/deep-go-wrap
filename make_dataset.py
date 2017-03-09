@@ -228,6 +228,8 @@ def parse_args():
                              ' so (19,19,1) is not shrinked, but (1,) is.', default=False)
     parser.add_argument('--dtype', dest='dtype',
                         help='convert dtype of stored data to given numpy dtype (instead the default value defined by plane/label)', default=None)
+    parser.add_argument('--compression', dest='compression',
+                        help='Possible values: "lzf", "gzip10", "gzip9", ...', default='lzf')
     parser.add_argument('--proc', type=int,
                         default=multiprocessing.cpu_count(),
                         help='specify number of processes for parallelization')
@@ -333,6 +335,16 @@ def main():
         dtype_x = args.dtype
         dtype_y = args.dtype
 
+    compression_kwargs = {}
+    if args.compression == 'lzf':
+        compression_kwargs['compression'] = 'lzf'
+    elif args.compression.startswith('gzip'):
+        compression_kwargs['compression'] = 'gzip'
+        level = int(args.compression[4:])
+        assert 0<=level<=10
+        compression_kwargs['compression_opts'] = level
+    else:
+        raise RuntimeError("Invalid compression arg.")
 
     ## INIT dataset
     with h5py.File(args.filename) as f:
@@ -343,19 +355,26 @@ def main():
         logging.debug("y.dtype: %s -> %s"%(sample_y.dtype, dtype_y))
 
         try:
+            kwargsx = {
+                # infinite number of examples
+                'maxshape' :(None,) + dshape_x,
+                'dtype' : dtype_x,
+            }
+            kwargsx.update(compression_kwargs)
+
             dset_x = f.create_dataset(args.xname,
-                                    (0,) + dshape_x,
-                                    # infinite number of examples
-                                    maxshape=(None,) + dshape_x,
-                                    dtype=dtype_x,
-                                    # we will have a lot of zeros in the data
-                                    compression='gzip', compression_opts=6)
+                                      (0,) + dshape_x,
+                                      **kwargsx)
+            kwargsy = {
+                # infinite number of examples
+                'maxshape' :(None,) + dshape_y,
+                'dtype' : dtype_y,
+            }
+            kwargsy.update(compression_kwargs)
 
             dset_y = f.create_dataset(args.yname,
-                                    (0,) + dshape_y,
-                                    maxshape=(None,) + dshape_y,
-                                    dtype=dtype_y,
-                                    compression='gzip', compression_opts=6)
+                                      (0,) + dshape_y,
+                                      **kwargsy)
         except Exception as e:
             logging.error("Cannot create dataset. File exists? (%s)"%(str(e)))
             sys.exit(1)
