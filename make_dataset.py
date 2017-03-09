@@ -335,6 +335,7 @@ def main():
         dtype_x = args.dtype
         dtype_y = args.dtype
 
+    ## compression
     compression_kwargs = {}
     if args.compression == 'lzf':
         compression_kwargs['compression'] = 'lzf'

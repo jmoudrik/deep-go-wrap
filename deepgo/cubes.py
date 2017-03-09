@@ -99,27 +99,23 @@ def get_label_future3_exp(s, player):
 def get_label_correct(s, player):
     return analyze_board.board2correct_move_mask(s.board, player)
 
-@register(reg_label, 'ranks')
-def get_label_ranks(s, player):
+@register(reg_label, 'ranks_number')
+def get_label_ranks_number(s, player):
     our_rank, enemy_rank = s.ranks if player == 'b' else reversed(s.ranks)
 
     if our_rank is None or enemy_rank is None:
         raise SkipGame("Rank missing")
-    # FIXME
-    # this should be parameterized
-    # instead of the XXX hardwired
-    # numbers
-    o,e = our_rank.key(), enemy_rank.key()
-    if o > 20 or e > 20:
-        raise SkipGame("Player(s) too bad")
-    if o <= -6 or e <= -6:
-        raise SkipGame("Player(s) too good")
 
-    # <0, 25>
-    o,e = o+5, e+5
-    a = np.zeros((2, 26), dtype='uint8')
-    a[0][o] = 1
-    a[1][e] = 1
+    o, e = our_rank.key(), enemy_rank.key()
+
+    if not ( -19 <= o <= 30 ) or not ( -19 <= e <= 30 ):
+        raise SkipGame("Rank outside boundaries")
+
+    a = np.zeros((2,), dtype='uint8')
+
+    # map from <-19, 30> to <0, 49>
+    a[0] = o + 19
+    a[1] = e + 19
 
     return a
 
