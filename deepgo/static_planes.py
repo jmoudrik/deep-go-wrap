@@ -43,3 +43,26 @@ def get_gridcular_from_center(boardsize):
     center = boardsize // 2
     return distances_from_pt(gridcular_distance, (center, center), boardsize)
 
+@cached
+def get_exp_gridcular_from_center(boardsize, exp):
+    return np.exp(exp * get_gridcular_from_center(boardsize))
+
+@cached
+def get_exp_sqd_from_center(boardsize, exp):
+    return np.exp(exp * get_sqd_from_center(boardsize))
+
+if __name__ == "__main__":
+    import time
+    for a in xrange(4000000):
+        pass
+
+    t0 = time.time()
+    a = get_exp_gridcular_from_center(19, -0.5)
+    t1 = time.time()
+    b = get_exp_gridcular_from_center(19, -0.5)
+    t2 = time.time()
+
+    print (t1 - t0) / (t2 - t1)
+    a = get_gridcular_from_center(19)
+    #a = get_exp_gridcular_from_center(19, -0.5)
+    print a

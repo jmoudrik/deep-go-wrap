@@ -1,11 +1,9 @@
 import logging
-import array
 import numpy as np
-from itertools import islice
 
 import gomill
 import analyze_board
-from static_planes import get_border_mark, get_sqd_from_center
+import static_planes
 from utils import raw_history
 from rank import Rank, BrWr
 
@@ -227,8 +225,8 @@ def get_cube_tian_zhu_2015(state, player):
         if enemy_rank_key == -r or enemy_rank_key < -8:
             cube[12 + r][:] = 1
 
-    cube[21] = get_border_mark(state.board.side)
-    cube[22] = np.exp(-0.5 * get_sqd_from_center(state.board.side))
+    cube[21] = static_planes.get_border_mark(state.board.side)
+    cube[22] = np.exp(-0.5 * static_planes.get_sqd_from_center(state.board.side))
 
     # distances from stones ~ cfg
     dist_friend, dist_enemy = analyze_board.board2dist_from_stones(state.board, player)
@@ -359,6 +357,55 @@ def get_cube_detlefko_conthist(state, player):
     history = np.exp(- 0.1 * raw_history(state.board, state.history))
     cube[10] = friend * history
     cube[11] = enemy * history
+    return cube
+
+@register(reg_cube, 'jm2017')
+def get_cube_jm(state, player):
+    cube = np.zeros((22, state.board.side, state.board.side), dtype='float32')
+
+    string_lib = analyze_board.board2string_lib(state.board)
+    lib_count = analyze_board.liberties_count(state.board, string_lib)
+    # for liberties themselves
+    lib_count_lib = analyze_board.lib_nbs_to_lib_count(state.board, string_lib.liberties_nb_count)
+
+    empty, friend, enemy = analyze_board.board2color_mask(state.board, player)
+
+    lib_liberties = empty * lib_count_lib
+    our_liberties = friend * lib_count
+    enemy_liberties = enemy * lib_count
+
+    cube[0] = lib_liberties == 1
+    cube[1] = lib_liberties == 2
+    cube[2] = lib_liberties == 3
+    cube[3] = lib_liberties >= 4
+
+    cube[4] = our_liberties == 1
+    cube[5] = our_liberties == 2
+    cube[6] = our_liberties == 3
+    cube[7] = our_liberties >= 4
+
+    cube[8] = enemy_liberties == 1
+    cube[9] = enemy_liberties == 2
+    cube[10] = enemy_liberties == 3
+    cube[11] = enemy_liberties >= 4
+
+    cube[12] = empty * 1
+    cube[13] = friend * 1
+    cube[14] = enemy * 1
+    cube[15] = 1
+
+    # watch out, history gives -1 for empty points
+    history = raw_history(state.board, state.history)
+    cube[16] = 1*(history == 1)
+    cube[17] = 1*(history == 2)
+    cube[18] = 1*(history == 3)
+    cube[19] = 1*(history == 4)
+    if state.ko_point is not None:
+        ko_row, ko_col = state.ko_point
+        cube[20][ko_row][ko_col] = 1
+
+    cube[21] = static_planes.get_exp_sqd_from_center(state.board.side, -0.5)
+
     return cube
 
 if __name__ == "__main__":
