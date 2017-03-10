@@ -16,7 +16,9 @@ NBCOORD = ((-1,0), (1,0), (0,1), (0,-1))
 # coord => string number
 # StringLib.liberties = {}
 # string number => set of liberties coords
-StringLib = namedtuple('StringLib', 'string liberties')
+# StringLib.liberties_nb_count = {}
+# liberty coor => number of neighboring stones
+StringLib = namedtuple('StringLib', 'string liberties liberties_nb_count')
 
 # NbInfo for candidate moves (= coord is a currently empty intersection)
 # NbInfo.liberties = {}
@@ -29,6 +31,9 @@ NbInfo = namedtuple('NbInfo', 'liberties friends enemies')
 
 def coord_onboard(board, (row, col)):
     return row >= 0 and col >= 0 and row < board.side and col < board.side
+
+def coord_count_edges(board, (row, col)):
+    return sum((row == 0, col == 0, row == board.side - 1, col == board.side -1))
 
 def iter_nbhs(board, (row, col)):
     for dx, dy in NBCOORD:
@@ -51,6 +56,9 @@ def board2string_lib(board):
     visited = {}
     # string number => set of liberties
     liberties = {}
+    # liberty => set of nbs
+    lib_nb_cnt = {}
+
     i = -1
     for pt in colors.keys():
         if pt in visited:
@@ -68,6 +76,7 @@ def board2string_lib(board):
             for nb in iter_nbhs(board, n):
                 # track liberty
                 if not nb in colors:
+                    lib_nb_cnt[nb] = lib_nb_cnt.get(nb, 0) + 1
                     liberties.setdefault(i, set()).add(nb)
                     continue
                 if nb in visited:
@@ -78,7 +87,7 @@ def board2string_lib(board):
                 if colors[nb] == colors[n]:
                     fringe.append(nb)
 
-    return StringLib(visited, liberties)
+    return StringLib(visited, liberties, lib_nb_cnt)
 
 def board2dist_from_stones(board, player, maxdepth=4):
     """
@@ -263,6 +272,22 @@ def npclose(a, empty, closeset, verbose=False):
 
     return ret
 
+def lib_nbs_to_lib_count(board, liberties_nb_count):
+    """
+    returns array of number of empty intersection around empty intersection.
+    invalid for coords where a stone is.
+
+    essentialy counts liberties of liberties
+    """
+    lib_counts = np.zeros((board.side, board.side), dtype='uint8')
+    for row in xrange(board.side):
+        for col in xrange(board.side):
+            lib = row, col
+            lib_counts[row][col] = 5 - liberties_nb_count.get(lib, 0) - coord_count_edges(board, lib)
+
+    return lib_counts
+
+
 if __name__ == "__main__":
     def print_board(board):
         for row in xrange(board.side):
@@ -291,7 +316,8 @@ if __name__ == "__main__":
                 row, col = move
                 board.play(row, col, color)
 
-        colors, strings, liberties = board2strings(board)
+        sl = board2string_lib(board)
+        libcnt = lib_nbs_to_lib_count(board, sl.liberties_nb_count)
 
         # XXX
         print_board(board)
@@ -300,19 +326,19 @@ if __name__ == "__main__":
             print "%2d  " % row,
             for col in xrange(board.side):
                 pt = board.get(row, col)
-                if pt == None:
-                    print " .",
+                if pt == None or True:
+                    print "%d"%(libcnt[row][col]),
                 else:
-                    print "%2d" % strings[row, col],
+                    print "%s" % '.' if pt == 'b' else '_',
             print
 
         print '    ',
         for col in xrange(board.side):
-            print " %s" % string.lowercase[col if col < 8 else col +1],
+            print "%s" % string.lowercase[col if col < 8 else col +1],
         print
 
-        for i in xrange(max(strings.itervalues())):
-            print i, len(liberties[i])
+        #for i in xrange(max(strings.itervalues())):
+        #    print i, len(liberties[i])
 
     def time_correctness():
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
@@ -475,9 +501,10 @@ if __name__ == "__main__":
             cb = npclose(friend, empty, closeset)
 
     import cProfile
-    cProfile.run("run()")
+    #cProfile.run("run()")
 #    cProfile.run("time_bfs()")
 
-    time_bfs()
+    #time_bfs()
     #test_libdist()
+    test_strings()
 
