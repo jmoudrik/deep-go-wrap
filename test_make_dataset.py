@@ -1,7 +1,8 @@
+#from __future__ import absolute_import
+
 from unittest import TestCase
 
 from make_dataset import parse_rank_specification
-
 
 class TestParse_rank_specification(TestCase):
     def basic(self):
@@ -19,6 +20,7 @@ class TestParse_rank_specification(TestCase):
         self.assertEqual(parse_rank_specification('1..3,'), set([1, 2, 3, None]))
         self.assertEqual(parse_rank_specification(','), set([None]))
 
-    if __name__ == '__main__':
-        import unittest
-        unittest.main()
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()
