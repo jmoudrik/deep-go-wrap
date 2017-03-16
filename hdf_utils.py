@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
+
 import h5py
 from collections import namedtuple
 
@@ -8,15 +9,24 @@ SplitTo = namedtuple('SplitTo', ['dest', 'at'])
 
 
 def print_stats(files):
+    def print_one_obj(key, obj):
+        print(obj)
+        if isinstance(obj, h5py.Dataset):
+            for k, v in sorted(obj.attrs.items()):
+                print("%25s\t%s" % (k, v))
+        elif isinstance(obj, h5py.Group):
+            for k, v in sorted(obj.items()):
+                print("%25s\t%s" % (k, v))
+        else:
+            assert False
+
     for f in files:
         hf = h5py.File(f, 'r')
         print('=' * 40)
         print(f)
         print('=' * 40)
-        for key, dset in hf.items():
-            print(key, dset.shape, dset.dtype)
-            for k, v in sorted(dset.attrs.items()):
-                print("%25s\t%s" % (k, v))
+        for key, obj in hf.items():
+            print_one_obj(key, obj)
 
 
 def copy_attrs(source, dest):
@@ -36,7 +46,7 @@ def append_data(source, dest, start, end):
 
 
 def open_copy_output(dest, orig_x, orig_y):
-    fout = h5py.File(dest.filename, 'w')
+    fout = h5py.File(dest.filename, 'a')
     dset_x = fout.create_dataset(dest.xkey,
                                  (0,) + orig_x.shape[1:],
                                  maxshape=(None,) + orig_x.shape[1:],
@@ -125,6 +135,21 @@ def merge(target, sources, blocksize=100000):
         fout.close()
 
 
+
+def usage():
+    print("""%s <command> [args]
+Command can be one of:
+    i, identify     print info of groups in the hdf files [args]
+    s, split        args:
+    """)
+
+
+"""
+def main():
+    ## ARGS
+    args = parse_args()
+"""
+
 if __name__ == "__main__":
     import sys
 
@@ -134,8 +159,9 @@ if __name__ == "__main__":
 
     if argc >= 2 and argv[1].lower() in ['s', 'split']:
         split(HdfLoc('gokifu_1_20000.hdf', 'xs', 'ys'),
-              [SplitTo(HdfLoc('output_0.hdf', 'xs', 'ys'), 10),
-               SplitTo(HdfLoc('output_1.hdf', 'xs', 'ys'), 17),
+              #[SplitTo(HdfLoc('gokifu_validation.hdf', 'xs', 'ys'), 200000),
+              [SplitTo(HdfLoc('output_0.hdf', 'foo/xs1', 'foo/ys1'), 10),
+               SplitTo(HdfLoc('output_0.hdf', 'foo/xs2', 'foo/ys2'), 17),
                ],
               blocksize=4)
 
