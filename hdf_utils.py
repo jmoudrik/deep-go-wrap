@@ -165,9 +165,7 @@ if __name__ == "__main__":
                ],
               blocksize=4)
 
-    if argc >= 2 and argv[1].lower() in ['m', 'merge']:
-        merge(HdfLoc('merged.hdf', 'xs', 'ys'),
-              [HdfLoc('output_0.hdf', 'xs', 'ys'),
-               HdfLoc('output_1.hdf', 'xs', 'ys'),
-               ],
-              blocksize=4)
+    if argc >= 5 and argv[1].lower() in ['m', 'merge']:
+        target, rest = argv[2], argv[3:]
+        merge(HdfLoc(target, 'xs', 'ys'),
+              [HdfLoc(t, 'xs', 'ys') for t in rest])
